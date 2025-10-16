@@ -5,23 +5,16 @@ import { Server } from "socket.io";
 // --- CONFIGURAÇÕES GLOBAIS ---
 const port = 4000;
 const host = "localhost";
-
-// tempos em milissegundos
 const tempo_minimo_foco = 5000; // Tempo que o foco deve ser sustentado em cada alvo (Fase 1)
 const tempo_maximo_alvo = 10000; // Tempo máximo para cada alvo da Fase 1 (Erro de Omissão)
 
 
 // fase 1: 5 alvos estáticos (Atenção Sustentada)
 const config_fase1 = [
-    // Alvo 1 (Posição Fixa)
     { id: 1, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    // Alvo 2 (Posição Fixa)
     { id: 2, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    // Alvo 3 (Posição Fixa)
     { id: 3, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    // Alvo 4 (Posição Fixa)
     { id: 4, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    // Alvo 5 (Posição Fixa)
     { id: 5, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
 ];
 
@@ -64,25 +57,23 @@ io.on("connection", (socket) => {
         fase_atual: 1, 
         
         // métricas gerais de fase
-        foco_iniciado_timestamp: null,
-        foco_concluido_nesta_fase: false,
-        tempo_inicio_fase: null,
-        timer_fase: null,
+        foco_iniciado_timestamp: null, // quando o foco foi iniciado
+        foco_concluido_nesta_fase: false, // se o foco foi concluído com sucesso na fase atual
+        tempo_inicio_fase: null, // quando a fase atual foi iniciada
+        timer_fase: null, // timer para controle de tempo máximo por fase
         
         // métricas da fase 1 (atenção sustentada)
-        indice_alvo_atual: 0, 
-        tempo_primeiro_foco: null,
-        tempos_primeiro_foco_registrados: [], 
+        indice_alvo_atual: 0, // serve para navegar pelos alvos da fase 1
+        tempo_primeiro_foco: null, // tempo de reação (primeiro foco)
+        tempos_primeiro_foco_registrados: [], // array de tempos de reação registrados
         erros_omissao: 0, 
         erros_desvio_foco: 0, 
 
     };
     estados_clientes.set(socket.id, estado_inicial);
 
-    // --- FUNÇÕES DE CONTROLE DE FASES ESPECÍFICAS ---
     
     // --- FASE 1: Atenção Sustentada ---
-    
     const iniciar_fase1 = () => {
         const estado = estados_clientes.get(socket.id);
         if (!estado) return;
@@ -93,7 +84,6 @@ io.on("connection", (socket) => {
         if (!alvo_atual) {
             console.log(`--- fase 1 concluída. cliente: ${socket.id} ---`);
             
-            // Enquanto a Fase 2 está comentada, finaliza o experimento
             estado.fase_atual = 3; 
             socket.emit("experimento_concluido", { 
                 mensagem: "Fase 1 (Atenção Sustentada) concluída. Experimento finalizado.",
@@ -183,10 +173,8 @@ io.on("connection", (socket) => {
                 y >= alvo_da_fase.y_min && y <= alvo_da_fase.y_max;
 
             if (esta_focando_na_area) {
-                // --- FOCO NA ÁREA ---
                 
                 if (estado.fase_atual === 1) {
-                    // FASE 1: ATENÇÃO SUSTENTADA (Rastreia Reação e Sustentação)
 
                     // 1. Rastreamento do Tempo de Reação (primeiro foco)
                     if (estado.tempo_primeiro_foco === null) {
