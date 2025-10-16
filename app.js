@@ -61,7 +61,7 @@ io.on("connection", (socket) => {
 
     // estado inicial do cliente
     const estado_inicial = {
-        fase_atual: 0, // 0 = inicial, 1 = Fase 1, (2 = Fase 2), 3 = fim
+        fase_atual: 1, 
         
         // métricas gerais de fase
         foco_iniciado_timestamp: null,
@@ -131,7 +131,7 @@ io.on("connection", (socket) => {
     // Finaliza o alvo atual e passa para o próximo alvo
     const finalizar_alvo_fase1 = (termino_por_sucesso = false) => {
         const estado = estados_clientes.get(socket.id);
-        if (!estado || estado.fase_atual !== 1) return;
+        if (!estado || estado.fase_atual !== 1) return; 
 
         if (estado.timer_fase) clearTimeout(estado.timer_fase);
         
@@ -156,29 +156,7 @@ io.on("connection", (socket) => {
         estado.indice_alvo_atual++; 
         iniciar_fase1();
     };
-    
-    // --- FUNÇÃO CENTRAL DE CONTROLE DE FASE ---
-    
-    const iniciar_fase = () => {
-        const estado = estados_clientes.get(socket.id);
-        if (!estado) return;
-        
-        if (estado.timer_fase) clearTimeout(estado.timer_fase);
-
-        switch (estado.fase_atual) {
-            case 0:
-            case 1:
-                estado.fase_atual = 1;
-                iniciar_fase1(); // Chama o ciclo da Fase 1
-                break;
-            default:
-                console.log(`experimento finalizado para o cliente ${socket.id}.`);
-                break;
-        }
-    };
-
-    // --- INÍCIO ---
-    iniciar_fase();
+    iniciar_fase1();
 
 
     // --- ESCUTA DE DADOS DO OLHAR ---
