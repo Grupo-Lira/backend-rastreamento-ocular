@@ -5,18 +5,9 @@ import { Server } from "socket.io";
 // --- CONFIGURAÇÕES GLOBAIS ---
 const port = 4000;
 const host = "localhost";
+
 const tempo_minimo_foco = 5000; // Tempo que o foco deve ser sustentado em cada alvo (Fase 1)
 const tempo_maximo_alvo = 10000; // Tempo máximo para cada alvo da Fase 1 (Erro de Omissão)
-
-
-// fase 1: 5 alvos estáticos (Atenção Sustentada)
-const config_fase1 = [
-    { id: 1, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    { id: 2, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    { id: 3, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    { id: 4, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-    { id: 5, x_min: 680, x_max: 880, y_min: 412, y_max: 612 },
-];
 
 // map para armazenar o estado de cada cliente conectado
 const estados_clientes = new Map();
@@ -54,7 +45,8 @@ io.on("connection", (socket) => {
 
     // estado inicial do cliente
     const estado_inicial = {
-        fase_atual: 1, 
+        fase_atual: 0, // Estado inicial (0) para aguardar as coordenadas do cliente
+        config_alvos: [], // Onde as coordenadas vindas do cliente serão armazenadas
         
         // métricas gerais de fase
         foco_iniciado_timestamp: null, // quando o foco foi iniciado
@@ -78,13 +70,14 @@ io.on("connection", (socket) => {
         const estado = estados_clientes.get(socket.id);
         if (!estado) return;
         
+        const config_fase1 = estado.config_alvos; // Usa as coordenadas recebidas do cliente
         const alvo_atual = config_fase1[estado.indice_alvo_atual];
         
         // Verifica se todos os alvos foram completados
         if (!alvo_atual) {
             console.log(`--- fase 1 concluída. cliente: ${socket.id} ---`);
             
-            estado.fase_atual = 3; 
+            estado.fase_atual = 3; // marca o experimento como concluído
             socket.emit("experimento_concluido", { 
                 mensagem: "Fase 1 (Atenção Sustentada) concluída. Experimento finalizado.",
                 total_alvos: config_fase1.length,
@@ -100,7 +93,7 @@ io.on("connection", (socket) => {
         estado.foco_iniciado_timestamp = null;
         estado.foco_concluido_nesta_fase = false;
         estado.tempo_inicio_fase = Date.now();
-        estado.tempo_primeiro_foco = null; // reseta o tempo de reação
+        estado.tempo_primeiro_foco = null; 
         
         // inicia o timer de omissão
         estado.timer_fase = setTimeout(() => {
@@ -146,8 +139,37 @@ io.on("connection", (socket) => {
         estado.indice_alvo_atual++; 
         iniciar_fase1();
     };
-    iniciar_fase1();
 
+// --- RECEBIMENTO DAS CONFIGURAÇÕES (COORDENADAS) E INÍCIO DO JOGO ---
+    
+    // O cliente deve enviar um array de configurações de alvo ('config') neste evento.
+    socket.on("iniciar_experimento_com_config", (config) => {
+        
+        const estado = estados_clientes.get(socket.id);
+
+        // 1. VALIDAÇÃO DO ESTADO ATUAL
+        if (!estado || estado.fase_atual !== 0) {
+            console.log(`Tentativa de iniciar experimento em fase inválida: ${estado?.fase_atual}. cliente: ${socket.id}`);
+            return; // Sai da função se a fase já tiver começado ou terminado.
+        }
+
+        // 2. VALIDAÇÃO DOS DADOS RECEBIDOS
+        if (!Array.isArray(config) || config.length === 0) {
+             console.error(`Configurações de alvo inválidas recebidas. cliente: ${socket.id}`);
+             return; // Sai da função se os dados do cliente estiverem errados.
+        }
+
+        // 3. ARMAZENAMENTO 
+        estado.config_alvos = config;
+        
+        // Altera a fase para 1, ou seja, ela irá inciar 
+        estado.fase_atual = 1;
+
+        console.log(`Configurações recebidas, iniciando fase 1. Total de alvos: ${config.length}. cliente: ${socket.id}`);
+        
+        // Chama a função principal que define o primeiro alvo e inicia o timer.
+        iniciar_fase1();
+    });
 
     // --- ESCUTA DE DADOS DO OLHAR ---
     socket.on("gaze_data", (data) => {
@@ -162,7 +184,8 @@ io.on("connection", (socket) => {
             
             // Define o alvo com base na fase
             if (estado.fase_atual === 1) {
-                alvo_da_fase = config_fase1[estado.indice_alvo_atual];
+                // Usa a configuração recebida
+                alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual];
             }
 
             if (!alvo_da_fase) return;
