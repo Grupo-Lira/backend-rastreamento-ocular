@@ -142,9 +142,9 @@ io.on("connection", (socket) => {
 
 // --- RECEBIMENTO DAS CONFIGURAÇÕES (COORDENADAS) E INÍCIO DO JOGO ---
 
-O cliente deve enviar um array de configurações de alvo ('config') neste evento.
+    // O cliente deve enviar um array de configurações de alvo ('config') neste evento.
     socket.on("iniciar_experimento_com_config", (config) => {
-
+        console.log("config", config)
         const estado = estados_clientes.get(socket.id);
 
         // 1. VALIDAÇÃO DO ESTADO ATUAL
@@ -252,25 +252,7 @@ O cliente deve enviar um array de configurações de alvo ('config') neste event
         } catch (err) {
             console.error(`erro ao processar dados do cliente ${socket.id}:`, err);
         }
-    });
-
-    // --- Receber layout das estrelas da fase 1 ---
-    socket.on("fase_1_alvos_configuracao", (config) => {
-        const estado = estados_clientes.get(socket.id);
-        console.log("Config", config);
-        if (!estado || estado.fase_atual !== 0) {
-            console.log(
-            `Tentativa de configurar em fase inválida: ${estado?.fase_atual}`
-        );
-        return;
-        }
-
-        estado.config_alvos = config;
-        estado.fase_atual = 1;
-
-        console.log(`Configuração recebida para ${socket.id}. Alvos: ${config.length}`
-    );
-  });
+    });   
 
     // --- LÓGICA DE DESCONEXÃO ---
     socket.on("disconnect", () => {
