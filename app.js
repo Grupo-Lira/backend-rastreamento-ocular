@@ -302,7 +302,6 @@ io.on("connection", (socket) => {
       rodada: estado.rodada_atual_fase2,
       acertos: estado.acertos_fase2,
       erros: estado.erros_fase2,
-      planetas_clicados: estado.planetas_clicados,
     });
 
     // se foi a primeira rodada, inicia a segunda
