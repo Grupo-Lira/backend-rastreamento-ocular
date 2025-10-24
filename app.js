@@ -125,7 +125,7 @@ io.on("connection", (socket) => {
       estado.erros_fase2++;
     }
 
-    // envia a resposta ao cliente
+    // envia a resposta ao cliente 
     socket.emit("resposta_planeta", {
       planeta,
       correto,
@@ -137,6 +137,8 @@ io.on("connection", (socket) => {
     const limite_cliques = alvos_atuais.length;
     if (estado.planetas_clicados.length >= limite_cliques) {
       finalizar_rodada_fase2();
+      // enviar pro IOT que a rodada foi iniciada e finalizada pra ele ascender ou apagar o led
+      // front envia que esta esperando, eu recebo, eu mando p IOT que estou esperando e mando ele ascender o led, eu espero a resposta do IOT e mando pro front que pode continuar
     }
   };
 
@@ -409,6 +411,7 @@ io.on("connection", (socket) => {
   });
 
   // --- ESCUTA DE DADOS DO OLHAR ---
+  // comunicar 
   socket.on("gaze_data", (data) => {
     try {
       const { x, y } = data; // coordenadas do olhar recebidas do cliente
