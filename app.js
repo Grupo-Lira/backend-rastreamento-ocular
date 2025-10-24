@@ -125,7 +125,7 @@ io.on("connection", (socket) => {
       estado.erros_fase2++;
     }
 
-    // envia a resposta ao cliente 
+    // envia a resposta ao cliente
     socket.emit("resposta_planeta", {
       planeta,
       correto,
@@ -134,11 +134,9 @@ io.on("connection", (socket) => {
     });
 
     // verifica se já atingiu o limite de cliques para finalizar a rodada (1 clique por planeta)
-    const limite_cliques = alvos_atuais.length;
-    if (estado.planetas_clicados.length >= limite_cliques) {
+    if (estado.planetas_clicados.length >= alvos_atuais.length) {
+      // finalizar_rodada_fase2() irá gerenciar o fim da rodada/fase
       finalizar_rodada_fase2();
-      // enviar pro IOT que a rodada foi iniciada e finalizada pra ele ascender ou apagar o led
-      // front envia que esta esperando, eu recebo, eu mando p IOT que estou esperando e mando ele ascender o led, eu espero a resposta do IOT e mando pro front que pode continuar
     }
   };
 
@@ -183,9 +181,9 @@ io.on("connection", (socket) => {
     socket.emit("fase_iniciada", {
       fase: 1,
       alvo: alvo_atual,
-      mensagem: `fase 1 (atenção sustentada). alvo ${estado.indice_alvo_atual + 1} de ${
-        config_fase1.length
-      }. foque por ${tempo_minimo_foco / 1000}s.`,
+      mensagem: `fase 1 (atenção sustentada). alvo ${
+        estado.indice_alvo_atual + 1
+      } de ${config_fase1.length}. foque por ${tempo_minimo_foco / 1000}s.`,
     });
     console.log(
       `>>> alvo ${estado.indice_alvo_atual + 1} iniciado. cliente: ${socket.id}`
@@ -290,6 +288,15 @@ io.on("connection", (socket) => {
     const estado = estados_clientes.get(socket.id);
     if (!estado || estado.fase_atual !== 2) return;
 
+    // envia comando para o IoT apagar o led, pois é o fim da rodada
+    serialPort.write("LED_SELECAO_OFF\n", (err) => {
+      if (err) {
+        console.error("Erro ao mandar apagar LED:", err.message);
+      } else {
+        console.log(`IoT <- LED_SELECAO_OFF`);
+      }
+    });
+
     socket.emit("rodada_finalizada", {
       fase: 2,
       rodada: estado.rodada_atual_fase2,
@@ -363,6 +370,20 @@ io.on("connection", (socket) => {
     iniciar_fase3();
   };
 
+  // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front 
+  socket.on("fase2_pronta_para_cliques", () => {
+    console.log(`Front-end renderizou a pergunta dos planetas. Ligando LED.`);
+
+    // comando pro arduino ascender o led 
+    serialPort.write("LED_SELECAO_ON\n", (err) => {
+      if (err) {
+        console.error("Erro ao mandar ascender LED:", err.message);
+      } else {
+        console.log(`IoT <- LED_SELECAO_ON (LED ACESO)`);
+      }
+    });
+  });
+
   // --- RECEBIMENTO DAS CONFIGURAÇÕES (COORDENADAS) E INÍCIO DO JOGO ---
   socket.on("iniciar_experimento_com_config", (config) => {
     // Verifica se o valor recebido (config) é um array direto
@@ -411,7 +432,7 @@ io.on("connection", (socket) => {
   });
 
   // --- ESCUTA DE DADOS DO OLHAR ---
-  // comunicar 
+  // comunicar
   socket.on("gaze_data", (data) => {
     try {
       const { x, y } = data; // coordenadas do olhar recebidas do cliente
