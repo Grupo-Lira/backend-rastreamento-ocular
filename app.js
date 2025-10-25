@@ -164,12 +164,16 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // cancela o timer de omissãoq ue estava rodando pro alvo anterior 
     if (estado.timer_fase) clearTimeout(estado.timer_fase);
+
+    // variáveis resetadas 
     estado.foco_iniciado_timestamp = null;
     estado.foco_concluido_nesta_fase = false;
     estado.tempo_inicio_fase = Date.now();
     estado.tempo_primeiro_foco = null;
 
+    // timer para registrar omissão => se o timer de 10s estourar, registra omissão e finaliza o alvo 
     estado.timer_fase = setTimeout(() => {
       estado.erros_omissao++;
       console.log(
@@ -440,7 +444,7 @@ io.on("connection", (socket) => {
 
       // --- FASE 1 (atenção sustentada) ---
       if (estado.fase_atual === 1) {
-        const alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual];
+        const alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual]; 
         if (!alvo_da_fase) return;
 
         const esta_focando_na_area =
