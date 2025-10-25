@@ -81,6 +81,15 @@ io.on("connection", (socket) => {
     erros_omissao: 0,
     erros_desvio_foco: 0,
 
+    // métricas da fase 2 (atenção seletiva)
+    rodada_atual_fase2: 1, // começa na rodada 1
+    alvos_rodada1: [2, 5, 7], // planetas corretos da rodada 1
+    alvos_rodada2: [1, 3, 6], // planetas corretos da rodada 2
+    acertos_fase2: 0,
+    erros_fase2: 0,
+    planetas_clicados: [], // histórico de planetas clicados
+    tempo_inicio_rodada: null,
+
     // métricas da fase 3 (atenção dividida)
     indice_alvos_fase3: 0, // serve para navegar pelos pares de alvos da fase 3
     tempo_primeiro_foco_estrela: null,
@@ -95,7 +104,43 @@ io.on("connection", (socket) => {
   };
   estados_clientes.set(socket.id, estado_inicial);
 
-  // --- FASE 1 ---
+  // função que processa a seleção de um planeta na fase 2 (chamar no IOT)
+  const processar_selecao_planeta = (socket, planeta) => {
+    const estado = estados_clientes.get(socket.id);
+    if (!estado || estado.fase_atual !== 2) return;
+
+    // se estiver na rodade 1, então usa os alvos da rodada 1, senão os da rodada 2
+    const alvos_atuais =
+      estado.rodada_atual_fase2 === 1
+        ? estado.alvos_rodada1
+        : estado.alvos_rodada2;
+
+    estado.planetas_clicados.push(planeta); // registra o planeta clicado
+
+    // verifica se o planeta clicado está entre os alvos atuais
+    const correto = alvos_atuais.includes(planeta);
+    if (correto) {
+      estado.acertos_fase2++;
+    } else {
+      estado.erros_fase2++;
+    }
+
+    // envia a resposta ao cliente
+    socket.emit("resposta_planeta", {
+      planeta,
+      correto,
+      acertos: estado.acertos_fase2,
+      erros: estado.erros_fase2,
+    });
+
+    // verifica se já atingiu o limite de cliques para finalizar a rodada (1 clique por planeta)
+    if (estado.planetas_clicados.length >= alvos_atuais.length) {
+      // finalizar_rodada_fase2() irá gerenciar o fim da rodada/fase
+      finalizar_rodada_fase2();
+    }
+  };
+
+  // FASE 1: Atenção Sustentada
   const iniciar_fase1 = () => {
     const estado = estados_clientes.get(socket.id);
     if (!estado) return;
@@ -103,10 +148,11 @@ io.on("connection", (socket) => {
     const alvo_atual = config_fase1[estado.indice_alvo_atual];
 
     if (!alvo_atual) {
-      estado.fase_atual = 3;
-      socket.emit("experimento_concluido", {
-        mensagem:
-          "Fase 1 (Atenção Sustentada) concluída. Experimento finalizado.",
+      // Fase 1 concluída, inicia Fase 2
+      estado.fase_atual = 2;
+      socket.emit("fase_concluida", {
+        fase: 1,
+        mensagem: "Fase 1 (Atenção Sustentada) concluída.",
         total_alvos: config_fase1.length,
         total_erros_omissao: estado.erros_omissao,
         total_erros_desvio_foco: estado.erros_desvio_foco,
@@ -114,15 +160,20 @@ io.on("connection", (socket) => {
           estado.tempos_primeiro_foco_registrados
         ),
       });
+      iniciar_fase2();
       return;
     }
 
+    // cancela o timer de omissãoq ue estava rodando pro alvo anterior 
     if (estado.timer_fase) clearTimeout(estado.timer_fase);
+
+    // variáveis resetadas 
     estado.foco_iniciado_timestamp = null;
     estado.foco_concluido_nesta_fase = false;
     estado.tempo_inicio_fase = Date.now();
     estado.tempo_primeiro_foco = null;
 
+    // timer para registrar omissão => se o timer de 10s estourar, registra omissão e finaliza o alvo 
     estado.timer_fase = setTimeout(() => {
       estado.erros_omissao++;
       console.log(
@@ -134,13 +185,32 @@ io.on("connection", (socket) => {
     socket.emit("fase_iniciada", {
       fase: 1,
       alvo: alvo_atual,
-      mensagem: `fase 1 (sustentada). alvo ${estado.indice_alvo_atual + 1} de ${
-        config_fase1.length
-      }. foque por ${tempo_minimo_foco / 1000}s.`,
+      mensagem: `fase 1 (atenção sustentada). alvo ${
+        estado.indice_alvo_atual + 1
+      } de ${config_fase1.length}. foque por ${tempo_minimo_foco / 1000}s.`,
     });
     console.log(
       `>>> alvo ${estado.indice_alvo_atual + 1} iniciado. cliente: ${socket.id}`
     );
+  };
+
+  // FASE 2: Atenção Seletiva
+  const iniciar_fase2 = () => {
+    const estado = estados_clientes.get(socket.id);
+    if (!estado) return;
+
+    estado.tempo_inicio_rodada = Date.now();
+    const alvos_atuais =
+      estado.rodada_atual_fase2 === 1
+        ? estado.alvos_rodada1
+        : estado.alvos_rodada2;
+
+    socket.emit("fase_iniciada", {
+      fase: 2,
+      rodada: estado.rodada_atual_fase2,
+      alvos: alvos_atuais,
+      mensagem: `fase 2 (atenção seletiva). rodada ${estado.rodada_atual_fase2}. selecione os planetas corretos.`,
+    });
   };
 
   // FASE 3: Atenção Dividida
@@ -153,10 +223,8 @@ io.on("connection", (socket) => {
 
     // Verifica se todos os pares de alvos foram completados
     if (!alvos_atuais) {
-      console.log(`--- fase 3 concluída. cliente: ${socket.id} ---`);
-
-      socket.emit("experimento_concluido", {
-        mensagem: "Fase 3 (atenção dividida) concluída.",
+      socket.emit("fase_concluida", {
+        mensagem: "Fase 3 (Atenção Dividida) concluída.",
         total_pares_alvos: config_fase3.length,
         total_erros_omissao: estado.erros_omissao_fase3,
         total_erros_desvio: estado.erros_desvio_foco_fase3,
@@ -190,6 +258,7 @@ io.on("connection", (socket) => {
     });
   };
 
+  // FASE 1 - Finaliza o alvo atual e passa para o próximo
   const finalizar_alvo_fase1 = (termino_por_sucesso = false) => {
     const estado = estados_clientes.get(socket.id);
     if (!estado || estado.fase_atual !== 1) return;
@@ -205,6 +274,7 @@ io.on("connection", (socket) => {
 
     socket.emit("fase_atual_finalizada", {
       fase: 1,
+      mensagem: "Fase 1 (atenção sustentada) concluída.",
       alvo_concluido: estado.indice_alvo_atual + 1,
       sucesso: termino_por_sucesso,
       tempo_primeiro_foco: estado.tempo_primeiro_foco,
@@ -215,6 +285,56 @@ io.on("connection", (socket) => {
 
     estado.indice_alvo_atual++;
     iniciar_fase1();
+  };
+
+  // FASE 2 - Finaliza a rodada atual e passa para a próxima
+  const finalizar_rodada_fase2 = () => {
+    const estado = estados_clientes.get(socket.id);
+    if (!estado || estado.fase_atual !== 2) return;
+
+    // envia comando para o IoT apagar o led, pois é o fim da rodada
+    serialPort.write("LED_SELECAO_OFF\n", (err) => {
+      if (err) {
+        console.error("Erro ao mandar apagar LED:", err.message);
+      } else {
+        console.log(`IoT <- LED_SELECAO_OFF`);
+      }
+    });
+
+    socket.emit("rodada_finalizada", {
+      fase: 2,
+      rodada: estado.rodada_atual_fase2,
+      acertos: estado.acertos_fase2,
+      erros: estado.erros_fase2,
+    });
+
+    // se foi a primeira rodada, inicia a segunda
+    if (estado.rodada_atual_fase2 === 1) {
+      estado.rodada_atual_fase2 = 2;
+      estado.planetas_clicados = []; // reseta o histórico de cliques
+      estado.tempo_inicio_rodada = Date.now();
+      iniciar_fase2();
+    } else {
+      // se foi a segunda rodada, finaliza a fase 2 e inicia a fase 3
+      estado.fase_atual = 3;
+      socket.emit("fase_atual_finalizada", {
+        fase: 2,
+        mensagem: "Fase 2 (atenção seletiva) concluída.",
+        acertos_totais: estado.acertos_fase2,
+        erros_totais: estado.erros_fase2,
+      });
+      // se houver configuração (pares de alvos) para a fase 3, inicia
+      if (
+        Array.isArray(estado.config_alvos_fase3) &&
+        estado.config_alvos_fase3.length > 0
+      ) {
+        iniciar_fase3();
+      } else {
+        socket.emit("experimento_concluido", {
+          mensagem: "Experimento finalizado após fase 2.",
+        });
+      }
+    }
   };
 
   // FASE 3 - Finaliza o par de alvos atual e passa para o próximo par
@@ -240,6 +360,7 @@ io.on("connection", (socket) => {
 
     socket.emit("fase_atual_finalizada", {
       fase: 3,
+      mensagem: "Fase 3 (atenção dividida) concluída.",
       par_alvos_concluido: estado.indice_alvos_fase3 + 1,
       sucesso: sucesso,
       tempo_medio_reacao: metricas.media,
@@ -252,20 +373,69 @@ io.on("connection", (socket) => {
     iniciar_fase3();
   };
 
+  // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front 
+  socket.on("fase2_pronta_para_cliques", () => {
+    console.log(`Front-end renderizou a pergunta dos planetas. Ligando LED.`);
+
+    // comando pro arduino ascender o led 
+    serialPort.write("LED_SELECAO_ON\n", (err) => {
+      if (err) {
+        console.error("Erro ao mandar ascender LED:", err.message);
+      } else {
+        console.log(`IoT <- LED_SELECAO_ON (LED ACESO)`);
+      }
+    });
+  });
+
   // --- RECEBIMENTO DAS CONFIGURAÇÕES (COORDENADAS) E INÍCIO DO JOGO ---
   socket.on("iniciar_experimento_com_config", (config) => {
-    const estado = estados_clientes.get(socket.id);
-    if (!estado || estado.fase_atual !== 0) return;
-    if (!Array.isArray(config) || config.length === 0) return;
-    estado.config_alvos = config;
+    // Verifica se o valor recebido (config) é um array direto
+    if (Array.isArray(config)) {
+      // Se o array estiver vazio, não faz nada e sai da função
+      if (config.length === 0) return;
+
+      // Se for um array válido, assume que são os alvos da fase 1
+      estado.config_alvos = config;
+    } else if (config && typeof config === "object") {
+      // Se config for um objeto (formato mais estruturado)
+
+      // Verifica se existe uma propriedade chamada fase1 com um array de alvos
+      if (Array.isArray(config.fase1) && config.fase1.length > 0) {
+        // Salva os alvos da fase 1
+        estado.config_alvos = config.fase1;
+      } else {
+        // Se não tiver alvos válidos para fase 1, sai da função
+        return;
+      }
+
+      // Verifica se existe uma propriedade chamada fase3 com um array de pares de alvos
+      if (Array.isArray(config.fase3)) {
+        // Salva os alvos da fase 3 (se existirem)
+        estado.config_alvos_fase3 = config.fase3;
+      }
+    } else {
+      // Se config não for nem array nem objeto válido, sai da função
+      return;
+    }
+
+    // Define que o cliente está agora na fase 1
     estado.fase_atual = 1;
+
+    // Exibe no console quantos alvos foram recebidos para fase 1 e fase 3
     console.log(
-      `Configurações recebidas, iniciando fase 1. Total de alvos: ${config.length}. cliente: ${socket.id}`
+      `Configurações recebidas. Fase1: ${
+        estado.config_alvos.length
+      } alvos; Fase3: ${
+        estado.config_alvos_fase3?.length || 0
+      } pares. cliente: ${socket.id}`
     );
+
+    // Inicia a fase 1
     iniciar_fase1();
   });
 
   // --- ESCUTA DE DADOS DO OLHAR ---
+  // comunicar
   socket.on("gaze_data", (data) => {
     try {
       const { x, y } = data; // coordenadas do olhar recebidas do cliente
@@ -274,7 +444,7 @@ io.on("connection", (socket) => {
 
       // --- FASE 1 (atenção sustentada) ---
       if (estado.fase_atual === 1) {
-        const alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual];
+        const alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual]; 
         if (!alvo_da_fase) return;
 
         const esta_focando_na_area =
