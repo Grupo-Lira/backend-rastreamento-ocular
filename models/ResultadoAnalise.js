@@ -3,9 +3,7 @@ import mongoose from 'mongoose';
 const ResultadoAnaliseSchema = new mongoose.Schema({
     client_id: { type: String, required: true, unique: true },
     timestamp_analise: { type: Date, default: Date.now },
-    
-    // Métrica de Desempenho (média e DP do TR)
-    estatisticas_resumo: {
+    resumo_metricas: {
         tempo_reacao_medio_ms: Number,
         tempo_reacao_desvio_padrao_ms: Number,
         total_acertos: Number,
@@ -13,13 +11,12 @@ const ResultadoAnaliseSchema = new mongoose.Schema({
         total_omissao: Number,
     },
     
-    // Resultados detalhados para cada alvo
     analise_por_alvo: [
         {
             alvo_indice: Number,
             motivo_servidor: String,
-            resultado: String, // ACERTO, COMISSÃO, OMISSÃO
-            tempo_reacao_ms: mongoose.Schema.Types.Mixed, // Pode ser Number ou "N/A"
+            resultado: String, 
+            tempo_reacao_ms: mongoose.Schema.Types.Mixed, 
             foco_maximo_ms: Number,
             desvio_maximo_ms: Number,
             tempo_total_focado_ms: Number,

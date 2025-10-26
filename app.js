@@ -10,14 +10,9 @@ import ResultadoAnalise from "./models/ResultadoAnalise.js";
 const port = 4000;
 const host = "localhost";
 
-// Constantes das regras de negócio
-const tempo_minimo_foco = 5000;
-// tempo_maximo_alvo é USADO APENAS NA ANÁLISE POSTERIOR (para determinar OMISSÃO/COMISSÃO)
-const tempo_maximo_alvo_analise = 10000;
-
-const TEMPO_SUCESSO_MIN = 5000; // 5 segundos para ACERTO (Foco Máximo Contínuo)
-const TEMPO_OMISSAO_MAX = 10000; // 10 segundos (Latência ou Desvio Máximo Excedido)
-const TEMPO_DURACAO_FASE_1 = 60000; // NOVO: Duração MÁXIMA da Fase 1 (60s)
+const tempo_sucesso_min = 5000;
+const tempo_omissao_max = 10000;
+const tempo_duracao_fase1 = 60000;
 
 const estados_clientes = new Map();
 
@@ -53,6 +48,52 @@ parser.on("data", (raw) => {
   }
 });
 
+// --- SERVIDOR EXPRESS + SOCKET.IO ---
+const app = express();
+const httpServer = createServer(app);
+
+const io = new Server(httpServer, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+});
+
+const salvar_banco = async (clientId, historicoOlhar, resultadosAlvos) => {
+  if (mongoose.connection.readyState !== 1) {
+    console.error(
+      `Conexão com o MongoDB não está pronta: ${mongoose.connection.readyState}). Não foi possível salvar.`
+    );
+    return false;
+  }
+
+  // tenta salvar ou atualizar os dados do olhar do cliente X para a fase 1
+  try {
+    const registro_salvo = await Dados.findOneAndUpdate(
+      { client_id: clientId, fase: 1 },
+      {
+        $set: {
+          historico_olhar_fase1: historicoOlhar.map((item) => ({
+            ...item,
+            _id: undefined, // segurança
+          })),
+          resultados_alvos_fase1: resultadosAlvos.map((item) => ({
+            ...item,
+            _id: undefined,
+          })),
+        },
+      },
+      // se o doc existente não for encontrado, cria um novo
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    console.log(
+      `Dados da fase 1 salvos/atualizados. ID: ${registro_salvo._id}`
+    );
+    return true;
+  } catch (error) {
+    console.error(`Erro ao salvar dados:`, error);
+    return false;
+  }
+};
+
 // calcula a média e o desvio padrão de um array de números (tempos em que o usuário iniciou o foco no alvo)
 const calcular_desvio_padrao = (tempos) => {
   if (tempos.length === 0) return { media: 0, desvioPadrao: 0 };
@@ -69,246 +110,228 @@ const calcular_desvio_padrao = (tempos) => {
   };
 };
 
-// --- SERVIDOR EXPRESS + SOCKET.IO ---
-const app = express();
-const httpServer = createServer(app);
-
-const io = new Server(httpServer, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-});
-
-const salvar_dados_brutos_no_banco = async (
-  clientId,
-  historicoOlhar,
-  resultadosAlvos
-) => {
-  // Reforço do Log de Conexão
-  if (mongoose.connection.readyState !== 1) {
-    console.error(
-      `[DB] Conexão com o MongoDB não está pronta (Status: ${mongoose.connection.readyState}). Não foi possível salvar.`
-    );
-    return false;
-  }
-
-  try {
-    const registroSalvo = await Dados.findOneAndUpdate(
-      { client_id: clientId, fase: 1 },
-      {
-        $set: {
-          historico_olhar_fase1: historicoOlhar.map((item) => ({
-            ...item,
-            _id: undefined,
-          })),
-          resultados_alvos_fase1: resultadosAlvos.map((item) => ({
-            ...item,
-            _id: undefined,
-          })),
-        },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-
-    console.log(
-      `[DB] Dados brutos da Fase 1 salvos/atualizados. ID: ${registroSalvo._id}`
-    );
-    return true;
-  } catch (error) {
-    console.error(`[DB] ERRO ao salvar dados brutos:`, error);
-    return false;
-  }
-};
-
-const analisarFase1EViajarMetricas = async (
+// função chamada após a finalização da fase 1 para calcular as métricas TDC e enviar ao front 
+const analisar_metricas = async (
   client_id,
-  historicoOlhar,
-  resultadosAlvos
+  historico_olhar,
+  resultados_alvos
 ) => {
   console.log(`\n--- INICIANDO ANÁLISE POSTERIOR DA FASE 1 (${client_id}) ---`);
-  const resultadosDoParticipante = {
+
+  // objeto principal para armazenar os resultados detalhados e o resumo estatístico
+  const resultados_participante = {
     client_id: client_id,
     analise_por_alvo: [],
-    estatisticas_resumo: {},
+    resumo_metricas: {},
   };
 
-  for (const alvoBruto of resultadosAlvos) {
-    const alvoIndice = alvoBruto.alvo_indice;
+  for (const alvo of resultados_alvos) {
+    const alvo_indice = alvo.alvo_indice;
 
-    const eventosOlharDoAlvo = historicoOlhar
-      .filter((e) => e.alvo_indice === alvoIndice)
+    // filtra e ordena cronologicamente os eventos de olhar (estado 1=foco, 0=desvio) para o alvo atual
+    const eventos_olhar_alvo = historico_olhar
+      .filter((e) => e.alvo_indice === alvo_indice)
       .sort((a, b) => a.timestamp - b.timestamp);
 
-    let tempoTotalFoco = 0;
-    let focoMaximo = 0;
-    let inicioFoco = null;
-    let desvioMaximo = 0;
-    let inicioDesvio = null;
-    const tempoFinal = alvoBruto.tempo_fim_alvo;
+    let tempo_total_foco = 0;
+    let foco_maximo = 0;
+    let inicio_foco = null;
+    let desvio_maximo = 0;
+    let inicio_desvio = null;
+    const tempo_final = alvo.tempo_fim_alvo;
 
-    for (let i = 0; i < eventosOlharDoAlvo.length; i++) {
-      const evento = eventosOlharDoAlvo[i];
+    // cálculo de foco e desvio máximo/total
+    // percorre o histórico para calcular a duração dos blocos contínuos de foco e desvio
+    for (let i = 0; i < eventos_olhar_alvo.length; i++) {
+      const evento = eventos_olhar_alvo[i];
 
-      if (evento.estado === 1) {
-        // Foco estabelecido/continuado
-        if (inicioFoco === null) inicioFoco = evento.timestamp;
-        if (inicioDesvio !== null) {
-          // FIM DO DESVIO
-          const duracaoDesvio = evento.timestamp - inicioDesvio;
-          if (duracaoDesvio > desvioMaximo) desvioMaximo = duracaoDesvio;
-          inicioDesvio = null;
+      if (evento.estado === 1) { 
+
+        if (inicio_foco === null) inicio_foco = evento.timestamp;
+
+        // se estava desviado, calcula o tempo que ficou em desvio (fim do desvio)
+        if (inicio_desvio !== null) {
+          const duracao_desvio = evento.timestamp - inicio_desvio;
+          if (duracao_desvio > desvio_maximo) desvio_maximo = duracao_desvio;
+          inicio_desvio = null;
         }
       } else if (evento.estado === 0) {
-        // Desvio estabelecido/continuado
-        if (inicioDesvio === null) inicioDesvio = evento.timestamp;
-        if (inicioFoco !== null) {
-          // FIM DO FOCO
-          const duracaoBloco = evento.timestamp - inicioFoco;
-          tempoTotalFoco += duracaoBloco;
-          if (duracaoBloco > focoMaximo) focoMaximo = duracaoBloco;
-          inicioFoco = null;
+
+        if (inicio_desvio === null) inicio_desvio = evento.timestamp;
+
+        // se estava focado, calcula o tempo que ficou focado (fim do foco)
+        if (inicio_foco !== null) {
+          const duracao_bloco = evento.timestamp - inicio_foco;
+          tempo_total_foco += duracao_bloco;
+          if (duracao_bloco > foco_maximo) foco_maximo = duracao_bloco;
+          inicio_foco = null;
         }
       }
-    } // Trata o estado final (último bloco)
-    if (inicioFoco !== null) {
-      const duracaoBloco = tempoFinal - inicioFoco;
-      tempoTotalFoco += duracaoBloco;
-      if (duracaoBloco > focoMaximo) focoMaximo = duracaoBloco;
-    } else if (inicioDesvio !== null) {
-      const duracaoDesvio = tempoFinal - inicioDesvio;
-      if (duracaoDesvio > desvioMaximo) desvioMaximo = duracaoDesvio;
-    } // 3. CÁLCULO: TEMPO DE REAÇÃO (TR)
+    }
 
-    const primeiroFoco = eventosOlharDoAlvo.find((e) => e.estado === 1);
-    const tempoReacao = primeiroFoco
-      ? primeiroFoco.timestamp - alvoBruto.tempo_inicio_alvo
-      : "N/A"; // NOVO CAMPO BINÁRIO: Atingiu o critério de tempo mínimo de foco contínuo?
+    // trata o estado final, calculando a duração do último bloco até o fim do alvo
+    // o loop anterior só registra o tempo na transição de estados, não no término do alvo
+    if (inicio_foco !== null) {
+      // o alvo terminou no estado de foco
+      const duracao_bloco = tempo_final - inicio_foco;
+      tempo_total_foco += duracao_bloco;
+      if (duracao_bloco > foco_maximo) foco_maximo = duracao_bloco;
+    } else if (inicio_desvio !== null) {
+      // o alvo terminou no estado de desvio
+      const duracao_desvio = tempo_final - inicio_desvio;
+      // atualiza apenas o desvio máximo
+      if (duracao_desvio > desvio_maximo) desvio_maximo = duracao_desvio;
+    }
 
-    const concluiuDuracaoMinima = focoMaximo >= TEMPO_SUCESSO_MIN; // 4. CLASSIFICAÇÃO: OMISSÃO > COMISSÃO > ACERTO (Prioridade de Falha)
+    // cálculo: tempo de reação (tr)
+    // diferença entre o primeiro foco e o início do alvo
+    const primeiro_foco = eventos_olhar_alvo.find((e) => e.estado === 1);
+    const tempo_reacao = primeiro_foco
+      ? primeiro_foco.timestamp - alvo.tempo_inicio_alvo
+      : "n/a";
 
-    let resultadoFinal;
-    const duracaoTotalAlvo = tempoFinal - alvoBruto.tempo_inicio_alvo; // Regras de Omissão (Latência de início ou desvio muito longo)
+    // verifica se o foco contínuo máximo atingiu o critério de sucesso
+    const concluiu_duracao_minima = foco_maximo >= tempo_sucesso_min;
 
-    const focoNaoIniciado =
-      tempoReacao === "N/A" ||
-      (typeof tempoReacao === "number" && tempoReacao > TEMPO_OMISSAO_MAX);
-    const latenciaRetornoExcedida = desvioMaximo > TEMPO_OMISSAO_MAX;
+    // classificação: omissão > comissão > acerto 
+    let resultado_final;
+    const duracao_total_alvo = tempo_final - alvo.tempo_inicio_alvo;
 
-    // Critério para Comissão: Houve pelo menos uma quebra de foco (o histórico tem mais de 2 eventos)
-    const houveQuebraFoco = eventosOlharDoAlvo.length > 2; // A. PRIORIDADE MÁXIMA: OMISSÃO (Falha Catastrófica de Latência/Desvio)
+    // regras de omissão (foco nunca iniciado ou latência/desvio muito longos)
+    // foco nao iniciado: verifica se demorou demais para focar (tempo de reacao)
+    const foco_nao_iniciado = 
+      tempo_reacao === "n/a" || 
+      (typeof tempo_reacao === "number" && tempo_reacao > tempo_omissao_max);
+      
+    // tempo max. desviado: verifica se demorou demais para voltar ao foco
+    const latencia_retorno_excedida = desvio_maximo > tempo_omissao_max; 
 
-    if (focoNaoIniciado || latenciaRetornoExcedida) {
-      resultadoFinal = "OMISSÃO"; // B. PRÓXIMA PRIORIDADE: COMISSÃO (Não foi Omissão, mas teve quebra de foco - Desvio)
-    } else if (houveQuebraFoco) {
-      resultadoFinal = "COMISSÃO"; // C. ÚLTIMA PRIORIDADE: ACERTO (Foco direto, rápido e bem sucedido - Sem quebras e sem latência)
+    // critério para comissão: houve quebra de foco (mais de dois eventos = inicio, quebra, retorno, etc)
+    const houve_quebra_foco = eventos_olhar_alvo.length > 2;
+
+    // a. prioridade máxima: omissão (se demorou muito no inicio ou no retorno)
+    if (foco_nao_iniciado || latencia_retorno_excedida) {
+      resultado_final = "OMISSÃO";
+    // b. próxima prioridade: comissão (se nao foi omissao, mas houve quebras de foco)
+    } else if (houve_quebra_foco) {
+      resultado_final = "COMISSÃO";
+    // c. última prioridade: acerto (se nao e omissao nem comissao)
     } else {
-      resultadoFinal = "ACERTO";
-    } // LOG DE ANÁLISE POR ALVO
+      resultado_final = "ACERTO";
+    }
+
+    // log de análise por alvo
+    // deixar apenas para fase de integração por conta dos testes, pra versão final: tirar 
     console.log(
-      `[ANÁLISE ALVO ${alvoIndice + 1}] Motivo Término Bruto: ${
-        alvoBruto.motivo_termino
+      `[ANÁLISE ALVO ${alvo_indice + 1}] motivo término bruto: ${
+        alvo.motivo_termino
       }.`
     );
     console.log(
-      `   > TR: ${tempoReacao}ms, Foco Máximo: ${focoMaximo}ms, Desvio Máximo: ${desvioMaximo}ms, Duração Total: ${duracaoTotalAlvo}ms`
+      `  > tr: ${tempo_reacao}ms, foco máximo: ${foco_maximo}ms, desvio máximo: ${desvio_maximo}ms, duração total: ${duracao_total_alvo}ms`
     );
     console.log(
-      `   > Classificação Final: ${resultadoFinal}. Concluiu Duração Mínima: ${concluiuDuracaoMinima}. (Critério: TEMPO_SUCESSO_MIN=${TEMPO_SUCESSO_MIN}ms, TEMPO_OMISSAO_MAX=${TEMPO_OMISSAO_MAX}ms)`
-    ); // FIM LOG DE ANÁLISE POR ALVO // 5. Armazena o detalhe
-    resultadosDoParticipante.analise_por_alvo.push({
-      alvo_indice: alvoIndice,
-      motivo_servidor: alvoBruto.motivo_termino,
-      resultado: resultadoFinal,
-      concluiu_duracao_minima: concluiuDuracaoMinima, // NOVO CAMPO
-      tempo_reacao_ms: tempoReacao,
-      foco_maximo_ms: focoMaximo,
-      desvio_maximo_ms: desvioMaximo,
-      tempo_total_focado_ms: tempoTotalFoco,
-      duracao_total_alvo_ms: duracaoTotalAlvo,
+      `  > classificação final: ${resultado_final}. concluiu duração mínima: ${concluiu_duracao_minima}. (critério: tempo_sucesso_min=${tempo_sucesso_min}ms, tempo_omissao_max=${tempo_omissao_max}ms)`
+    );
+
+    // armazena o detalhe do alvo
+    resultados_participante.analise_por_alvo.push({
+      alvo_indice: alvo_indice,
+      motivo_servidor: alvo.motivo_termino,
+      resultado: resultado_final,
+      concluiu_duracao_minima: concluiu_duracao_minima,
+      tempo_reacao_ms: tempo_reacao,
+      foco_maximo_ms: foco_maximo,
+      desvio_maximo_ms: desvio_maximo,
+      tempo_total_focado_ms: tempo_total_foco,
+      duracao_total_alvo_ms: duracao_total_alvo,
     });
-  } // FIM DO LOOP DE ALVOS
+  } 
 
-  // 6. CÁLCULO ESTATÍSTICO E RESUMO
-
-  // O resumo da fase agora deve contabilizar o que VOCÊ considera ACERTO e o que VOCÊ considera COMISSÃO/OMISSÃO
-  // Vamos usar a nova métrica 'concluiu_duracao_minima' para o total de acertos (sucesso técnico)
-
-  const temposReacao = resultadosDoParticipante.analise_por_alvo
+  // cálculo estatístico e resumo das métricas
+  // filtra os tempos de reação válidos para o cálculo da média
+  const tempos_reacao = resultados_participante.analise_por_alvo
     .map((r) => r.tempo_reacao_ms)
     .filter((tr) => typeof tr === "number");
 
-  const { media: trMedio, desvioPadrao: trDesvioPadrao } =
-    calcular_desvio_padrao(temposReacao);
+  // calcula média e desvio padrão usando a função auxiliar
+  const { media: tr_medio, desvioPadrao: tr_desvio_padrao } =
+    calcular_desvio_padrao(tempos_reacao);
 
-  // NOVO CÁLCULO DE ACERTOS: Total de alvos que atingiram o critério de tempo mínimo (FOCO_COMPLETO)
-  const totalAcertosTecnicos = resultadosDoParticipante.analise_por_alvo.filter(
-    (r) => r.concluiu_duracao_minima === true
-  ).length;
+  // cálculo de acertos: total de alvos que atingiram o critério de foco mínimo 
+  const total_acertos =
+    resultados_participante.analise_por_alvo.filter(
+      (r) => r.concluiu_duracao_minima === true
+    ).length;
 
-  // Manter a contagem de falhas de performance (omissão/comissão)
-  const totalComissao = resultadosDoParticipante.analise_por_alvo.filter(
+  // contagem de omissão/comissão
+  const total_comissao = resultados_participante.analise_por_alvo.filter(
     (r) => r.resultado === "COMISSÃO"
   ).length;
-  const totalOmissao = resultadosDoParticipante.analise_por_alvo.filter(
+  const total_omissao = resultados_participante.analise_por_alvo.filter(
     (r) => r.resultado === "OMISSÃO"
   ).length;
 
   const resumo = {
-    tempo_reacao_medio_ms: trMedio,
-    tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
-    // Renomeado para maior clareza, mas mantendo a variável original 'total_acertos' para compatibilidade com o retorno
-    total_acertos: totalAcertosTecnicos,
-    total_comissao: totalComissao,
-    total_omissao: totalOmissao,
+    tempo_reacao_medio_ms: tr_medio,
+    tempo_reacao_desvio_padrao_ms: tr_desvio_padrao,
+    total_acertos: total_acertos,
+    total_comissao: total_comissao,
+    total_omissao: total_omissao,
   };
-  resultadosDoParticipante.estatisticas_resumo = resumo; // LOG DE RESUMO
-  console.log(`\n--- RESUMO DA FASE 1 ---`);
-  console.log(`Total Acertos (Técnicos/Duracao): ${totalAcertosTecnicos}`);
-  console.log(`Total Comissão (Quebra de Foco): ${totalComissao}`);
-  console.log(`Total Omissão (Falha Crítica/Latencia): ${totalOmissao}`);
-  console.log(`TR Médio: ${trMedio}ms (DP: ${trDesvioPadrao}ms)`);
-  console.log(`------------------------\n`); // FIM LOG DE RESUMO // 8. SALVAMENTO NO BANCO (ResultadoAnalise)
+  resultados_participante.resumo_metricas = resumo;
+
+  // log de resumo: tirar depois da integração 
+  console.log(`\n--- resumo de métricas da fase 1 ---`);
+  console.log(`total acertos: ${total_acertos}`);
+  console.log(`total comissão: ${total_comissao}`);
+  console.log(`total omissão: ${total_omissao}`);
+  console.log(`tr médio: ${tr_medio}ms (dp: ${tr_desvio_padrao}ms)`);
+  console.log(`------------------------\n`);
+
   try {
+    // busca ou cria (upsert) um documento de análise para este client_id e salva o resultado completo
     await ResultadoAnalise.findOneAndUpdate(
       { client_id: client_id },
-      { $set: resultadosDoParticipante },
+      { $set: resultados_participante },
       { upsert: true, new: true }
     );
     console.log(
-      `[DB] Análise resumida da Fase 1 salva/atualizada para ${client_id}`
+      `Análise resumida da fase 1 salva/atualizada para ${client_id}`
     );
   } catch (saveError) {
     console.error(
-      `[DB] ERRO ao salvar a análise para ${client_id}:`,
+      `Erro ao salvar a análise para ${client_id}:`,
       saveError
     );
-  } // 9. Retorna o resumo para o Socket.IO
+  }
 
   return {
     client_id: client_id,
-    tempo_reacao_medio_ms: trMedio,
-    total_acertos: totalAcertosTecnicos, // Retorna o total de acertos técnicos
-    total_comissao: totalComissao,
-    total_omissao: totalOmissao,
+    tempo_reacao_medio_ms: tr_medio,
+    total_acertos: total_acertos,
+    total_comissao: total_comissao,
+    total_omissao: total_omissao,
   };
 };
 
-// NOVA FUNÇÃO: Finaliza a Fase 1 (chamada em caso de sucesso no último alvo ou tempo esgotado da fase).
+// chamada em caso de sucesso no último alvo ou tempo esgotado da fase
 const finalizar_fase1_completa = async (socket, motivo) => {
   const estado = estados_clientes.get(socket.id);
   if (!estado || estado.fase_atual !== 1) return;
 
-  // 1. Remove o timer da fase
   if (estado.timer_fase1) clearTimeout(estado.timer_fase1);
 
-  // 2. Salva os dados brutos e executa a análise
-  const salvou = await salvar_dados_brutos_no_banco(
+  // salva os dados e executa a análise
+  const salvou = await salvar_banco(
     socket.id,
     estado.historico_olhar_fase1,
     estado.resultados_alvos_fase1
   );
 
   if (salvou) {
-    // Se salvou, ANALISA E SALVA O RESUMO
-    const metricasFinais = await analisarFase1EViajarMetricas(
+    // se salvou, analisa e salva o resumo 
+    const metricasFinais = await analisar_metricas(
       socket.id,
       estado.historico_olhar_fase1,
       estado.resultados_alvos_fase1
@@ -317,21 +340,20 @@ const finalizar_fase1_completa = async (socket, motivo) => {
     socket.emit("fase_concluida", {
       fase: 1,
       mensagem: `Fase 1 concluída. Motivo: ${motivo}.`,
-      metricas: metricasFinais, // Envia o resumo das métricas ao cliente
+      metricas: metricasFinais,
     });
   } else {
-    // Caso não salve
+    // caso não salve 
     socket.emit("fase_concluida", {
       fase: 1,
-      mensagem: "Fase 1 concluída. Falha ao salvar dados brutos.",
+      mensagem: "Fase 1 concluída. Falha ao salvar dados.",
     });
   }
 
-  // 3. Limpa os arrays de dados locais e prepara para a próxima fase
+  // limpa os arrays de dados locais e prepara para a próxima fase
   estado.historico_olhar_fase1 = [];
   estado.resultados_alvos_fase1 = [];
 
-  // 4. Avança para a próxima fase
   iniciar_fase2();
 };
 
@@ -341,7 +363,7 @@ io.on("connection", (socket) => {
   const estado_inicial = {
     fase_atual: 0,
     config_alvos: [],
-    timer_fase1: null, // NOVO: Timer para a duração total da Fase (60s)
+    timer_fase1: null, 
 
     // métricas gerais das fases
     foco_iniciado_timestamp: null,
@@ -421,42 +443,29 @@ io.on("connection", (socket) => {
     const alvo_atual = config_fase1[estado.indice_alvo_atual];
 
     if (!alvo_atual) {
-      // Fase 1 concluída, inicia Fase 2
-      estado.fase_atual = 2;
-      socket.emit("fase_concluida", {
-        fase: 1,
-        mensagem: "Fase 1 (Atenção Sustentada) concluída.",
-        total_alvos: config_fase1.length,
-        total_erros_omissao: estado.erros_omissao,
-        total_erros_desvio_foco: estado.erros_desvio_foco,
-        metricas: calcular_desvio_padrao(
-          estado.tempos_primeiro_foco_registrados
-        ),
-      });
       finalizar_fase1_completa(socket, "ALVOS_CONCLUIDOS");
       return;
     }
 
-    // Se este é o primeiro alvo (indice 0), inicia o timer de 60s para a FASE INTEIRA
+    // se este é o primeiro alvo, inicia o timer de 60s 
     if (estado.indice_alvo_atual === 0) {
       estado.tempo_inicio_fase = Date.now();
       if (estado.timer_fase1) clearTimeout(estado.timer_fase1);
 
-      // Configura o timer de 60s (1 minuto) para a FASE
       estado.timer_fase1 = setTimeout(() => {
-        // Garante que o alvo atual seja finalizado antes de encerrar a fase
+        // garante que o alvo atual seja finalizado antes de encerrar a fase
         if (estado.indice_alvo_atual < estado.config_alvos.length) {
           finalizar_alvo_fase1("TEMPO_FASE_EXCEDIDO");
         }
         finalizar_fase1_completa(socket, "TEMPO_FASE_EXCEDIDO");
-      }, TEMPO_DURACAO_FASE_1);
+      }, tempo_duracao_fase1);
     }
 
-    // Reset para o novo alvo
+    // reset para o novo alvo
     estado.foco_iniciado_timestamp = null;
-    estado.ultimo_estado_foco = 0; // registra o primeiro foco fora do alvo
+    estado.ultimo_estado_foco = 0; 
 
-    // Registra o tempo de início do alvo
+    // registra o tempo de início do alvo
     estado.historico_olhar_fase1.push({
       estado: 0,
       timestamp: Date.now(),
@@ -466,10 +475,10 @@ io.on("connection", (socket) => {
     socket.emit("fase_iniciada", {
       fase: 1,
       alvo: alvo_atual,
-      tempo_necessario: tempo_minimo_foco,
+      tempo_necessario: tempo_sucesso_min,
       mensagem: `fase 1 (atenção sustentada). alvo ${
         estado.indice_alvo_atual + 1
-      } de ${config_fase1.length}. foque por ${tempo_minimo_foco / 1000}s.`,
+      } de ${config_fase1.length}. foque por ${tempo_sucesso_min / 1000}s.`,
     });
     console.log(
       `>>> alvo ${estado.indice_alvo_atual + 1} iniciado. Tempo Início: ${
@@ -766,7 +775,7 @@ io.on("connection", (socket) => {
             estado.foco_iniciado_timestamp = Date.now();
           } else {
             const tempo_focado = Date.now() - estado.foco_iniciado_timestamp;
-            if (tempo_focado >= tempo_minimo_foco) {
+            if (tempo_focado >= tempo_sucesso_min) {
               finalizar_alvo_fase1("FOCO_COMPLETO");
               return;
             }
@@ -852,7 +861,7 @@ io.on("connection", (socket) => {
           !estado.foco_concluido_estrela
         ) {
           const tempo_estrela = Date.now() - estado.foco_iniciado_estrela; // tempo focado na estrela
-          if (tempo_estrela >= tempo_minimo_foco) {
+          if (tempo_estrela >= tempo_sucesso_min) {
             estado.foco_concluido_estrela = true;
             socket.emit("gaze_status", {
               status: "sucesso_parcial",
@@ -865,7 +874,7 @@ io.on("connection", (socket) => {
           !estado.foco_concluido_radar
         ) {
           const tempo_radar = Date.now() - estado.foco_iniciado_radar; // tempo focado no radar
-          if (tempo_radar >= tempo_minimo_foco) {
+          if (tempo_radar >= tempo_sucesso_min) {
             estado.foco_concluido_radar = true;
             socket.emit("gaze_status", {
               status: "sucesso_parcial",
@@ -878,7 +887,7 @@ io.on("connection", (socket) => {
         if (estado.foco_concluido_estrela && estado.foco_concluido_radar) {
           console.log(
             `ambos os alvos mantidos por ${
-              tempo_minimo_foco / 1000
+              tempo_sucesso_min / 1000
             }s. cliente: ${socket.id}`
           );
           finalizar_alvos_fase3(true);
@@ -892,7 +901,7 @@ io.on("connection", (socket) => {
           !estado.foco_concluido_estrela
         ) {
           const tempo_focado = Date.now() - estado.foco_iniciado_estrela;
-          if (tempo_focado < tempo_minimo_foco) {
+          if (tempo_focado < tempo_sucesso_min) {
             // registra erro de comissão
             estado.erros_desvio_foco_fase3++;
             socket.emit("gaze_status", {
@@ -913,7 +922,7 @@ io.on("connection", (socket) => {
           !estado.foco_concluido_radar
         ) {
           const tempo_focado = Date.now() - estado.foco_iniciado_radar;
-          if (tempo_focado < tempo_minimo_foco) {
+          if (tempo_focado < tempo_sucesso_min) {
             // registra erro de comissão
             estado.erros_desvio_foco_fase3++;
             socket.emit("gaze_status", {
