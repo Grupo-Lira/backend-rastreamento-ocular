@@ -118,11 +118,13 @@ io.on("connection", (socket) => {
     estado.planetas_clicados.push(planeta); // registra o planeta clicado
 
     // verifica se o planeta clicado está entre os alvos atuais
-    const correto = alvos_atuais.includes(planeta);
-    if (correto) {
-      estado.acertos_fase2++;
-    } else {
+    const erro = alvos_atuais.includes(planeta);
+    const correto = !erro; // Define o resultado inverso da verificação de erro
+
+    if (erro) {
       estado.erros_fase2++;
+    } else {
+      estado.acertos_fase2++;
     }
 
     // envia a resposta ao cliente
@@ -164,16 +166,16 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // cancela o timer de omissãoq ue estava rodando pro alvo anterior 
+    // cancela o timer de omissãoq ue estava rodando pro alvo anterior
     if (estado.timer_fase) clearTimeout(estado.timer_fase);
 
-    // variáveis resetadas 
+    // variáveis resetadas
     estado.foco_iniciado_timestamp = null;
     estado.foco_concluido_nesta_fase = false;
     estado.tempo_inicio_fase = Date.now();
     estado.tempo_primeiro_foco = null;
 
-    // timer para registrar omissão => se o timer de 10s estourar, registra omissão e finaliza o alvo 
+    // timer para registrar omissão => se o timer de 10s estourar, registra omissão e finaliza o alvo
     estado.timer_fase = setTimeout(() => {
       estado.erros_omissao++;
       console.log(
@@ -373,11 +375,11 @@ io.on("connection", (socket) => {
     iniciar_fase3();
   };
 
-  // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front 
+  // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front
   socket.on("fase2_pronta_para_cliques", () => {
     console.log(`Front-end renderizou a pergunta dos planetas. Ligando LED.`);
 
-    // comando pro arduino ascender o led 
+    // comando pro arduino ascender o led
     serialPort.write("LED_SELECAO_ON\n", (err) => {
       if (err) {
         console.error("Erro ao mandar ascender LED:", err.message);
@@ -444,7 +446,7 @@ io.on("connection", (socket) => {
 
       // --- FASE 1 (atenção sustentada) ---
       if (estado.fase_atual === 1) {
-        const alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual]; 
+        const alvo_da_fase = estado.config_alvos[estado.indice_alvo_atual];
         if (!alvo_da_fase) return;
 
         const esta_focando_na_area =
