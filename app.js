@@ -129,8 +129,6 @@ io.on("connection", (socket) => {
     socket.emit("resposta_planeta", {
       planeta,
       correto,
-      acertos: estado.acertos_fase2,
-      erros: estado.erros_fase2,
     });
 
     // verifica se já atingiu o limite de cliques para finalizar a rodada (1 clique por planeta)
