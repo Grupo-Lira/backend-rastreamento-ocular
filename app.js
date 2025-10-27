@@ -374,8 +374,8 @@ io.on("connection", (socket) => {
   };
 
   // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front 
-  socket.on("fase2_pronta_para_cliques", () => {
-    console.log(`Front-end renderizou a pergunta dos planetas. Ligando LED.`);
+  socket.on("aguardando_iot", () => {
+    console.log(`Front-end renderizou a pergunta dos planetas e está aguardando o IoT. Ligando LED.`);
 
     // comando pro arduino ascender o led 
     serialPort.write("LED_SELECAO_ON\n", (err) => {
