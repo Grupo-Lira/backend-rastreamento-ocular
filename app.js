@@ -87,7 +87,8 @@ io.on("connection", (socket) => {
     alvos_rodada2: [1, 3, 6], // planetas corretos da rodada 2
     acertos_fase2: 0,
     erros_fase2: 0,
-    planetas_clicados: [], // histórico de planetas clicados
+    planetas_clicados: [], // histórico de planetas clicados (por rodada)
+    alvos_vistos_fase2: [], // alvos corretos já vistos (em qualquer rodada)
     tempo_inicio_rodada: null,
 
     // métricas da fase 3 (atenção dividida)
@@ -121,6 +122,10 @@ io.on("connection", (socket) => {
     const correto = alvos_atuais.includes(planeta);
     if (correto) {
       estado.acertos_fase2++;
+      // registra alvo correto como visto
+      if (!estado.alvos_vistos_fase2.includes(planeta)) {
+        estado.alvos_vistos_fase2.push(planeta);
+      }
     } else {
       estado.erros_fase2++;
     }
@@ -299,13 +304,6 @@ io.on("connection", (socket) => {
       }
     });
 
-    socket.emit("rodada_finalizada", {
-      fase: 2,
-      rodada: estado.rodada_atual_fase2,
-      acertos: estado.acertos_fase2,
-      erros: estado.erros_fase2,
-    });
-
     // se foi a primeira rodada, inicia a segunda
     if (estado.rodada_atual_fase2 === 1) {
       estado.rodada_atual_fase2 = 2;
@@ -315,11 +313,21 @@ io.on("connection", (socket) => {
     } else {
       // se foi a segunda rodada, finaliza a fase 2 e inicia a fase 3
       estado.fase_atual = 3;
+      // consolida os alvos da fase 2 e separa vistos/ignorados
+      const todos_alvos_fase2 = [
+        ...new Set([...(estado.alvos_rodada1 || []), ...(estado.alvos_rodada2 || [])]),
+      ];
+      const planetas_vistos = [...new Set(estado.alvos_vistos_fase2 || [])];
+      const planetas_ignorados = todos_alvos_fase2.filter(
+        (p) => !planetas_vistos.includes(p)
+      );
+
       socket.emit("fase_atual_finalizada", {
         fase: 2,
         mensagem: "Fase 2 (atenção seletiva) concluída.",
-        acertos_totais: estado.acertos_fase2,
-        erros_totais: estado.erros_fase2,
+        acertos: estado.acertos_fase2,
+        planetas_vistos,
+        planetas_ignorados,
       });
       // se houver configuração (pares de alvos) para a fase 3, inicia
       if (
