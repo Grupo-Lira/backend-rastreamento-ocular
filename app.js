@@ -110,7 +110,7 @@ const calcular_desvio_padrao = (tempos) => {
   };
 };
 
-// função chamada após a finalização da fase 1 para calcular as métricas TDC e enviar ao front 
+// função chamada após a finalização da fase 1 para calcular as métricas TDC e enviar ao front
 const analisar_metricas = async (
   client_id,
   historico_olhar,
@@ -145,8 +145,7 @@ const analisar_metricas = async (
     for (let i = 0; i < eventos_olhar_alvo.length; i++) {
       const evento = eventos_olhar_alvo[i];
 
-      if (evento.estado === 1) { 
-
+      if (evento.estado === 1) {
         if (inicio_foco === null) inicio_foco = evento.timestamp;
 
         // se estava desviado, calcula o tempo que ficou em desvio (fim do desvio)
@@ -156,7 +155,6 @@ const analisar_metricas = async (
           inicio_desvio = null;
         }
       } else if (evento.estado === 0) {
-
         if (inicio_desvio === null) inicio_desvio = evento.timestamp;
 
         // se estava focado, calcula o tempo que ficou focado (fim do foco)
@@ -193,18 +191,18 @@ const analisar_metricas = async (
     // verifica se o foco contínuo máximo atingiu o critério de sucesso
     const concluiu_duracao_minima = foco_maximo >= tempo_sucesso_min;
 
-    // classificação: omissão > comissão > acerto 
+    // classificação: omissão > comissão > acerto
     let resultado_final;
     const duracao_total_alvo = tempo_final - alvo.tempo_inicio_alvo;
 
     // regras de omissão (foco nunca iniciado ou latência/desvio muito longos)
     // foco nao iniciado: verifica se demorou demais para focar (tempo de reacao)
-    const foco_nao_iniciado = 
-      tempo_reacao === "n/a" || 
+    const foco_nao_iniciado =
+      tempo_reacao === "n/a" ||
       (typeof tempo_reacao === "number" && tempo_reacao > tempo_omissao_max);
-      
+
     // tempo max. desviado: verifica se demorou demais para voltar ao foco
-    const latencia_retorno_excedida = desvio_maximo > tempo_omissao_max; 
+    const latencia_retorno_excedida = desvio_maximo > tempo_omissao_max;
 
     // critério para comissão: houve quebra de foco (mais de dois eventos = inicio, quebra, retorno, etc)
     const houve_quebra_foco = eventos_olhar_alvo.length > 2;
@@ -212,16 +210,16 @@ const analisar_metricas = async (
     // a. prioridade máxima: omissão (se demorou muito no inicio ou no retorno)
     if (foco_nao_iniciado || latencia_retorno_excedida) {
       resultado_final = "OMISSÃO";
-    // b. próxima prioridade: comissão (se nao foi omissao, mas houve quebras de foco)
+      // b. próxima prioridade: comissão (se nao foi omissao, mas houve quebras de foco)
     } else if (houve_quebra_foco) {
       resultado_final = "COMISSÃO";
-    // c. última prioridade: acerto (se nao e omissao nem comissao)
+      // c. última prioridade: acerto (se nao e omissao nem comissao)
     } else {
       resultado_final = "ACERTO";
     }
 
     // log de análise por alvo
-    // deixar apenas para fase de integração por conta dos testes, pra versão final: tirar 
+    // deixar apenas para fase de integração por conta dos testes, pra versão final: tirar
     console.log(
       `[ANÁLISE ALVO ${alvo_indice + 1}] motivo término bruto: ${
         alvo.motivo_termino
@@ -246,7 +244,7 @@ const analisar_metricas = async (
       tempo_total_focado_ms: tempo_total_foco,
       duracao_total_alvo_ms: duracao_total_alvo,
     });
-  } 
+  }
 
   // cálculo estatístico e resumo das métricas
   // filtra os tempos de reação válidos para o cálculo da média
@@ -258,11 +256,10 @@ const analisar_metricas = async (
   const { media: tr_medio, desvioPadrao: tr_desvio_padrao } =
     calcular_desvio_padrao(tempos_reacao);
 
-  // cálculo de acertos: total de alvos que atingiram o critério de foco mínimo 
-  const total_acertos =
-    resultados_participante.analise_por_alvo.filter(
-      (r) => r.concluiu_duracao_minima === true
-    ).length;
+  // cálculo de acertos: total de alvos que atingiram o critério de foco mínimo
+  const total_acertos = resultados_participante.analise_por_alvo.filter(
+    (r) => r.concluiu_duracao_minima === true
+  ).length;
 
   // contagem de omissão/comissão
   const total_comissao = resultados_participante.analise_por_alvo.filter(
@@ -281,7 +278,7 @@ const analisar_metricas = async (
   };
   resultados_participante.resumo_metricas = resumo;
 
-  // log de resumo: tirar depois da integração 
+  // log de resumo: tirar depois da integração
   console.log(`\n--- resumo de métricas da fase 1 ---`);
   console.log(`total acertos: ${total_acertos}`);
   console.log(`total comissão: ${total_comissao}`);
@@ -300,10 +297,7 @@ const analisar_metricas = async (
       `Análise resumida da fase 1 salva/atualizada para ${client_id}`
     );
   } catch (saveError) {
-    console.error(
-      `Erro ao salvar a análise para ${client_id}:`,
-      saveError
-    );
+    console.error(`Erro ao salvar a análise para ${client_id}:`, saveError);
   }
 
   return {
@@ -330,7 +324,7 @@ const finalizar_fase1_completa = async (socket, motivo) => {
   );
 
   if (salvou) {
-    // se salvou, analisa e salva o resumo 
+    // se salvou, analisa e salva o resumo
     const metricasFinais = await analisar_metricas(
       socket.id,
       estado.historico_olhar_fase1,
@@ -340,10 +334,11 @@ const finalizar_fase1_completa = async (socket, motivo) => {
     socket.emit("fase_concluida", {
       fase: 1,
       mensagem: `Fase 1 concluída. Motivo: ${motivo}.`,
+      motivo: motivo,
       metricas: metricasFinais,
     });
   } else {
-    // caso não salve 
+    // caso não salve
     socket.emit("fase_concluida", {
       fase: 1,
       mensagem: "Fase 1 concluída. Falha ao salvar dados.",
@@ -354,7 +349,8 @@ const finalizar_fase1_completa = async (socket, motivo) => {
   estado.historico_olhar_fase1 = [];
   estado.resultados_alvos_fase1 = [];
 
-  iniciar_fase2();
+  // 4. Avança para a próxima fase
+  //iniciar_fase2();
 };
 
 io.on("connection", (socket) => {
@@ -363,7 +359,7 @@ io.on("connection", (socket) => {
   const estado_inicial = {
     fase_atual: 0,
     config_alvos: [],
-    timer_fase1: null, 
+    timer_fase1: null,
 
     // métricas gerais das fases
     foco_iniciado_timestamp: null,
@@ -443,27 +439,30 @@ io.on("connection", (socket) => {
     const alvo_atual = config_fase1[estado.indice_alvo_atual];
 
     if (!alvo_atual) {
+      // Fase 1 concluída, inicia Fase 2
+      estado.fase_atual = 2;
+      socket.emit("fase_concluida", {
+        fase: 1,
+        mensagem: "Fase 1 (Atenção Sustentada) concluída.",
+        total_alvos: config_fase1.length,
+        total_erros_omissao: estado.erros_omissao,
+        total_erros_desvio_foco: estado.erros_desvio_foco,
+        // metricas: calcular_desvio_padrao(
+        //   estado.tempos_primeiro_foco_registrados
+        // ),
+      });
       finalizar_fase1_completa(socket, "ALVOS_CONCLUIDOS");
       return;
     }
 
-    // se este é o primeiro alvo, inicia o timer de 60s 
+    // se este é o primeiro alvo, inicia o timer de 60s
     if (estado.indice_alvo_atual === 0) {
       estado.tempo_inicio_fase = Date.now();
-      if (estado.timer_fase1) clearTimeout(estado.timer_fase1);
-
-      estado.timer_fase1 = setTimeout(() => {
-        // garante que o alvo atual seja finalizado antes de encerrar a fase
-        if (estado.indice_alvo_atual < estado.config_alvos.length) {
-          finalizar_alvo_fase1("TEMPO_FASE_EXCEDIDO");
-        }
-        finalizar_fase1_completa(socket, "TEMPO_FASE_EXCEDIDO");
-      }, tempo_duracao_fase1);
     }
 
     // reset para o novo alvo
     estado.foco_iniciado_timestamp = null;
-    estado.ultimo_estado_foco = 0; 
+    estado.ultimo_estado_foco = 0;
 
     // registra o tempo de início do alvo
     estado.historico_olhar_fase1.push({
@@ -573,8 +572,11 @@ io.on("connection", (socket) => {
       tempo_fim_alvo: Date.now(),
     });
 
+    const config_fase1 = estado.config_alvos;
+    const alvo_atual = config_fase1[estado.indice_alvo_atual];
     socket.emit("alvo_fase1_concluido", {
       fase: 1,
+      alvo: alvo_atual,
       alvo_concluido: alvo_indice + 1,
       motivo_termino: motivo_termino_bruto,
     });
@@ -688,6 +690,10 @@ io.on("connection", (socket) => {
 
   // --- RECEBIMENTO DAS CONFIGURAÇÕES (COORDENADAS) E INÍCIO DO JOGO ---
   socket.on("iniciar_experimento_com_config", (config) => {
+    // Pega estado do cliente
+    const estado = estados_clientes.get(socket.id);
+    if (!estado) return;
+
     // Verifica se o valor recebido (config) é um array direto
     if (Array.isArray(config)) {
       // Se o array estiver vazio, não faz nada e sai da função
@@ -701,9 +707,14 @@ io.on("connection", (socket) => {
       // Verifica se existe uma propriedade chamada fase1 com um array de alvos
       if (Array.isArray(config.fase1) && config.fase1.length > 0) {
         // Salva os alvos da fase 1
+        estado.fase_atual = 1;
+        console.log("Alvos da fase 1 recebidos:", config.fase1);
         estado.config_alvos = config.fase1;
       } else {
         // Se não tiver alvos válidos para fase 1, sai da função
+        console.log(
+          "Configuração inválida: alvos da fase 1 ausentes ou inválidos."
+        );
         return;
       }
 
@@ -736,6 +747,8 @@ io.on("connection", (socket) => {
   // --- ESCUTA DE DADOS DO OLHAR ---
   // comunicar
   socket.on("gaze_data", (data) => {
+    console.log(`Gaze data recebido do cliente ${socket.id}:`, data);
+
     try {
       const { x, y } = data;
       const estado = estados_clientes.get(socket.id);
@@ -773,6 +786,9 @@ io.on("connection", (socket) => {
         if (esta_focando_na_area) {
           if (estado.foco_iniciado_timestamp === null) {
             estado.foco_iniciado_timestamp = Date.now();
+            console.log(
+              `INICIANDO FOCO - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
+            );
           } else {
             const tempo_focado = Date.now() - estado.foco_iniciado_timestamp;
             if (tempo_focado >= tempo_sucesso_min) {
@@ -785,6 +801,9 @@ io.on("connection", (socket) => {
           if (estado.foco_iniciado_timestamp !== null) {
             estado.foco_iniciado_timestamp = null;
           }
+          console.log(
+            `NÃO FOCOU - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
+          );
         }
         return; // já tratou fase 1
       }
@@ -868,80 +887,96 @@ io.on("connection", (socket) => {
               alvo: "estrela",
             });
           }
-        }
-        if (
-          estado.foco_iniciado_radar !== null &&
-          !estado.foco_concluido_radar
-        ) {
-          const tempo_radar = Date.now() - estado.foco_iniciado_radar; // tempo focado no radar
-          if (tempo_radar >= tempo_sucesso_min) {
-            estado.foco_concluido_radar = true;
-            socket.emit("gaze_status", {
-              status: "sucesso_parcial",
-              alvo: "radar",
-            });
-          }
-        }
 
-        // sucesso só quando ambos os alvos mantiveram o foco
-        if (estado.foco_concluido_estrela && estado.foco_concluido_radar) {
-          console.log(
-            `ambos os alvos mantidos por ${
-              tempo_sucesso_min / 1000
-            }s. cliente: ${socket.id}`
-          );
-          finalizar_alvos_fase3(true);
+          if (
+            estado.foco_iniciado_radar !== null &&
+            !estado.foco_concluido_radar
+          ) {
+            const tempo_radar = Date.now() - estado.foco_iniciado_radar; // tempo focado no radar
+            if (tempo_radar >= tempo_sucesso_min) {
+              estado.foco_concluido_radar = true;
+              socket.emit("gaze_status", {
+                status: "sucesso_parcial",
+                alvo: "radar",
+              });
+            }
+          }
+
+          // sucesso só quando ambos os alvos mantiveram o foco
+          if (estado.foco_concluido_estrela && estado.foco_concluido_radar) {
+            console.log(
+              `ambos os alvos mantidos por ${
+                tempo_sucesso_min / 1000
+              }s. cliente: ${socket.id}`
+            );
+            finalizar_alvos_fase3(true);
+            return;
+          }
+
+          // tratamento de desvio (se iniciou foco em um alvo e depois saiu antes do mínimo)
+          if (
+            !esta_na_estrela &&
+            estado.foco_iniciado_estrela !== null &&
+            !estado.foco_concluido_estrela
+          ) {
+            const tempo_focado = Date.now() - estado.foco_iniciado_estrela;
+            if (tempo_focado < tempo_sucesso_min) {
+              // registra erro de comissão
+              estado.erros_desvio_foco_fase3++;
+              socket.emit("gaze_status", {
+                status: "erro",
+                tipo: "desvio_foco",
+                alvo: "estrela",
+                mensagem: "desviou o olhar da estrela antes do tempo mínimo.",
+                erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
+              });
+            }
+            estado.foco_iniciado_estrela = null;
+            estado.foco_concluido_estrela = false;
+          }
+
+          if (
+            !esta_no_radar &&
+            estado.foco_iniciado_radar !== null &&
+            !estado.foco_concluido_radar
+          ) {
+            const tempo_focado = Date.now() - estado.foco_iniciado_radar;
+            if (tempo_focado < tempo_sucesso_min) {
+              // registra erro de comissão
+              estado.erros_desvio_foco_fase3++;
+              socket.emit("gaze_status", {
+                status: "erro",
+                tipo: "desvio_foco",
+                alvo: "radar",
+                mensagem: "desviou o olhar do radar antes do tempo mínimo.",
+                erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
+              });
+            }
+            estado.foco_iniciado_radar = null;
+            estado.foco_concluido_radar = false;
+          }
+
           return;
         }
-
-        // tratamento de desvio (se iniciou foco em um alvo e depois saiu antes do mínimo)
-        if (
-          !esta_na_estrela &&
-          estado.foco_iniciado_estrela !== null &&
-          !estado.foco_concluido_estrela
-        ) {
-          const tempo_focado = Date.now() - estado.foco_iniciado_estrela;
-          if (tempo_focado < tempo_sucesso_min) {
-            // registra erro de comissão
-            estado.erros_desvio_foco_fase3++;
-            socket.emit("gaze_status", {
-              status: "erro",
-              tipo: "desvio_foco",
-              alvo: "estrela",
-              mensagem: "desviou o olhar da estrela antes do tempo mínimo.",
-              erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
-            });
-          }
-          estado.foco_iniciado_estrela = null;
-          estado.foco_concluido_estrela = false;
-        }
-
-        if (
-          !esta_no_radar &&
-          estado.foco_iniciado_radar !== null &&
-          !estado.foco_concluido_radar
-        ) {
-          const tempo_focado = Date.now() - estado.foco_iniciado_radar;
-          if (tempo_focado < tempo_sucesso_min) {
-            // registra erro de comissão
-            estado.erros_desvio_foco_fase3++;
-            socket.emit("gaze_status", {
-              status: "erro",
-              tipo: "desvio_foco",
-              alvo: "radar",
-              mensagem: "desviou o olhar do radar antes do tempo mínimo.",
-              erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
-            });
-          }
-          estado.foco_iniciado_radar = null;
-          estado.foco_concluido_radar = false;
-        }
-
-        return;
       }
     } catch (err) {
-      console.error(`erro ao processar dados do cliente ${socket.id}:`, err);
+      console.error(`Erro ao processar dados do cliente ${socket.id}:`, err);
     }
+  });
+
+  socket.on("fase_1_tempo_excedido", () => {
+    console.log(`Cliente ${socket.id} - Fase 1 tempo excedido recebido.`);
+    const estado = estados_clientes.get(socket.id);
+    if (!estado) return;
+    estado.fase_atual = 2;
+
+    // Garante que o alvo atual seja finalizado antes de encerrar a fase
+    if (estado.indice_alvo_atual < estado.config_alvos.length) {
+      finalizar_alvo_fase1("TEMPO_FASE_EXCEDIDO");
+    }
+    finalizar_fase1_completa(socket, "TEMPO_FASE_EXCEDIDO");
+
+    return;
   });
 
   socket.on("send_to_arduino", (payload) => {
