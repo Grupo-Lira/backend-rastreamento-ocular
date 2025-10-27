@@ -244,7 +244,6 @@ const analisar_metricas = async (
       tempo_total_focado_ms: tempo_total_foco,
       duracao_total_alvo_ms: duracao_total_alvo,
     });
-    return resultados_participante;
   }
 
   // cálculo estatístico e resumo das métricas
@@ -335,6 +334,7 @@ const finalizar_fase1_completa = async (socket, motivo) => {
     socket.emit("fase_concluida", {
       fase: 1,
       mensagem: `Fase 1 concluída. Motivo: ${motivo}.`,
+      motivo: motivo,
       metricas: metricasFinais,
     });
   } else {
@@ -350,7 +350,7 @@ const finalizar_fase1_completa = async (socket, motivo) => {
   estado.resultados_alvos_fase1 = [];
 
   // 4. Avança para a próxima fase
-  iniciar_fase2();
+  //iniciar_fase2();
 };
 
 io.on("connection", (socket) => {
@@ -707,6 +707,7 @@ io.on("connection", (socket) => {
       // Verifica se existe uma propriedade chamada fase1 com um array de alvos
       if (Array.isArray(config.fase1) && config.fase1.length > 0) {
         // Salva os alvos da fase 1
+        estado.fase_atual = 1;
         console.log("Alvos da fase 1 recebidos:", config.fase1);
         estado.config_alvos = config.fase1;
       } else {
@@ -886,79 +887,80 @@ io.on("connection", (socket) => {
               alvo: "estrela",
             });
           }
-        }
-        if (
-          estado.foco_iniciado_radar !== null &&
-          !estado.foco_concluido_radar
-        ) {
-          const tempo_radar = Date.now() - estado.foco_iniciado_radar; // tempo focado no radar
-          if (tempo_radar >= tempo_sucesso_min) {
-            estado.foco_concluido_radar = true;
-            socket.emit("gaze_status", {
-              status: "sucesso_parcial",
-              alvo: "radar",
-            });
-          }
-        }
 
-        // sucesso só quando ambos os alvos mantiveram o foco
-        if (estado.foco_concluido_estrela && estado.foco_concluido_radar) {
-          console.log(
-            `ambos os alvos mantidos por ${
-              tempo_sucesso_min / 1000
-            }s. cliente: ${socket.id}`
-          );
-          finalizar_alvos_fase3(true);
+          if (
+            estado.foco_iniciado_radar !== null &&
+            !estado.foco_concluido_radar
+          ) {
+            const tempo_radar = Date.now() - estado.foco_iniciado_radar; // tempo focado no radar
+            if (tempo_radar >= tempo_sucesso_min) {
+              estado.foco_concluido_radar = true;
+              socket.emit("gaze_status", {
+                status: "sucesso_parcial",
+                alvo: "radar",
+              });
+            }
+          }
+
+          // sucesso só quando ambos os alvos mantiveram o foco
+          if (estado.foco_concluido_estrela && estado.foco_concluido_radar) {
+            console.log(
+              `ambos os alvos mantidos por ${
+                tempo_sucesso_min / 1000
+              }s. cliente: ${socket.id}`
+            );
+            finalizar_alvos_fase3(true);
+            return;
+          }
+
+          // tratamento de desvio (se iniciou foco em um alvo e depois saiu antes do mínimo)
+          if (
+            !esta_na_estrela &&
+            estado.foco_iniciado_estrela !== null &&
+            !estado.foco_concluido_estrela
+          ) {
+            const tempo_focado = Date.now() - estado.foco_iniciado_estrela;
+            if (tempo_focado < tempo_sucesso_min) {
+              // registra erro de comissão
+              estado.erros_desvio_foco_fase3++;
+              socket.emit("gaze_status", {
+                status: "erro",
+                tipo: "desvio_foco",
+                alvo: "estrela",
+                mensagem: "desviou o olhar da estrela antes do tempo mínimo.",
+                erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
+              });
+            }
+            estado.foco_iniciado_estrela = null;
+            estado.foco_concluido_estrela = false;
+          }
+
+          if (
+            !esta_no_radar &&
+            estado.foco_iniciado_radar !== null &&
+            !estado.foco_concluido_radar
+          ) {
+            const tempo_focado = Date.now() - estado.foco_iniciado_radar;
+            if (tempo_focado < tempo_sucesso_min) {
+              // registra erro de comissão
+              estado.erros_desvio_foco_fase3++;
+              socket.emit("gaze_status", {
+                status: "erro",
+                tipo: "desvio_foco",
+                alvo: "radar",
+                mensagem: "desviou o olhar do radar antes do tempo mínimo.",
+                erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
+              });
+            }
+            estado.foco_iniciado_radar = null;
+            estado.foco_concluido_radar = false;
+          }
+
           return;
         }
-
-        // tratamento de desvio (se iniciou foco em um alvo e depois saiu antes do mínimo)
-        if (
-          !esta_na_estrela &&
-          estado.foco_iniciado_estrela !== null &&
-          !estado.foco_concluido_estrela
-        ) {
-          const tempo_focado = Date.now() - estado.foco_iniciado_estrela;
-          if (tempo_focado < tempo_sucesso_min) {
-            // registra erro de comissão
-            estado.erros_desvio_foco_fase3++;
-            socket.emit("gaze_status", {
-              status: "erro",
-              tipo: "desvio_foco",
-              alvo: "estrela",
-              mensagem: "desviou o olhar da estrela antes do tempo mínimo.",
-              erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
-            });
-          }
-          estado.foco_iniciado_estrela = null;
-          estado.foco_concluido_estrela = false;
-        }
-
-        if (
-          !esta_no_radar &&
-          estado.foco_iniciado_radar !== null &&
-          !estado.foco_concluido_radar
-        ) {
-          const tempo_focado = Date.now() - estado.foco_iniciado_radar;
-          if (tempo_focado < tempo_sucesso_min) {
-            // registra erro de comissão
-            estado.erros_desvio_foco_fase3++;
-            socket.emit("gaze_status", {
-              status: "erro",
-              tipo: "desvio_foco",
-              alvo: "radar",
-              mensagem: "desviou o olhar do radar antes do tempo mínimo.",
-              erros_desvio_foco_fase3: estado.erros_desvio_foco_fase3,
-            });
-          }
-          estado.foco_iniciado_radar = null;
-          estado.foco_concluido_radar = false;
-        }
-
-        return;
       }
     } catch (err) {
-      console.error(`erro ao processar dados do cliente ${socket.id}:`, err);
+      console.error(`Erro ao processar dados do cliente ${socket.id}:`, err);
     }
   });
 
