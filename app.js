@@ -349,7 +349,7 @@ const finalizar_fase1_completa = async (socket, motivo) => {
     socket.emit("fase_concluida", {
       fase: 1,
       mensagem: `Fase 1 concluída. Motivo: ${motivo}.`,
-      metricas: metricasFinais, // Envia o resumo das métricas ao cliente
+      metricas: metricasFinais,
     });
   } else {
     // caso não salve 
