@@ -23,30 +23,30 @@ mongoose
   .then(() => console.log("Conectado ao MongoDB!"))
   .catch((err) => console.error("Erro ao conectar ao MongoDB:", err));
 
-// --- CONFIGURAÇÕES SERIAL / ARDUINO ---
-const SERIAL_PORT = "COM13"; // ajuste conforme necessário
-const SERIAL_BAUD_RATE = 9600;
+// // --- CONFIGURAÇÕES SERIAL / ARDUINO ---
+// const SERIAL_PORT = "COM13"; // ajuste conforme necessário
+// const SERIAL_BAUD_RATE = 9600;
 
-const serialPort = new SerialPort({
-  path: SERIAL_PORT,
-  baudRate: SERIAL_BAUD_RATE,
-});
+// const serialPort = new SerialPort({
+//   path: SERIAL_PORT,
+//   baudRate: SERIAL_BAUD_RATE,
+// });
 
-const parser = serialPort.pipe(new ReadlineParser({ delimiter: "\n" }));
+// const parser = serialPort.pipe(new ReadlineParser({ delimiter: "\n" }));
 
-serialPort.on("open", () => {
-  console.log(`Serial aberto em ${SERIAL_PORT} @ ${SERIAL_BAUD_RATE}`);
-});
+// serialPort.on("open", () => {
+//   console.log(`Serial aberto em ${SERIAL_PORT} @ ${SERIAL_BAUD_RATE}`);
+// });
 
-parser.on("data", (raw) => {
-  const data = raw.trim();
-  console.log(`Arduino -> ${data}`);
+// parser.on("data", (raw) => {
+//   const data = raw.trim();
+//   console.log(`Arduino -> ${data}`);
 
-  io.emit("arduino_event", { raw: data });
-  if (data === "BUTTON_PRESSED") {
-    io.emit("arduino_button", { message: "BUTTON_PRESSED" });
-  }
-});
+//   io.emit("arduino_event", { raw: data });
+//   if (data === "BUTTON_PRESSED") {
+//     io.emit("arduino_button", { message: "BUTTON_PRESSED" });
+//   }
+// });
 
 // --- SERVIDOR EXPRESS + SOCKET.IO ---
 const app = express();
@@ -786,9 +786,6 @@ io.on("connection", (socket) => {
         if (esta_focando_na_area) {
           if (estado.foco_iniciado_timestamp === null) {
             estado.foco_iniciado_timestamp = Date.now();
-            console.log(
-              `INICIANDO FOCO - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
-            );
           } else {
             const tempo_focado = Date.now() - estado.foco_iniciado_timestamp;
             if (tempo_focado >= tempo_sucesso_min) {
@@ -800,10 +797,7 @@ io.on("connection", (socket) => {
           // Foco perdido, reseta o contador de tempo contínuo
           if (estado.foco_iniciado_timestamp !== null) {
             estado.foco_iniciado_timestamp = null;
-          }
-          console.log(
-            `NÃO FOCOU - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
-          );
+          }          
         }
         return; // já tratou fase 1
       }
