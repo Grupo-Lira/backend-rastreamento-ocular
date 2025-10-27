@@ -244,7 +244,7 @@ const analisar_metricas = async (
       tempo_total_focado_ms: tempo_total_foco,
       duracao_total_alvo_ms: duracao_total_alvo,
     });
-    return resultadosDoParticipante;
+    return resultados_participante;
   }
 
   // cálculo estatístico e resumo das métricas
@@ -965,6 +965,7 @@ io.on("connection", (socket) => {
   socket.on("fase_1_tempo_excedido", () => {
     console.log(`Cliente ${socket.id} - Fase 1 tempo excedido recebido.`);
     const estado = estados_clientes.get(socket.id);
+    if (!estado) return;
     estado.fase_atual = 2;
 
     // Garante que o alvo atual seja finalizado antes de encerrar a fase
