@@ -35,12 +35,12 @@ const serialPort = new SerialPort({
 const parser = serialPort.pipe(new ReadlineParser({ delimiter: "\n" }));
 
 serialPort.on("open", () => {
-  console.log(`Serial aberto em ${SERIAL_PORT} @ ${SERIAL_BAUD_RATE}`);
+  console.debug(`Serial aberto em ${SERIAL_PORT} @ ${SERIAL_BAUD_RATE}`);
 });
 
 parser.on("data", (raw) => {
   const data = raw.trim();
-  console.log(`Arduino -> ${data}`);
+  console.debug(`Arduino -> ${data}`);
 
   io.emit("arduino_event", { raw: data });
   if (data === "BUTTON_PRESSED") {
@@ -84,7 +84,7 @@ const salvar_banco = async (clientId, historicoOlhar, resultadosAlvos) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    console.log(
+    console.debug(
       `Dados da fase 1 salvos/atualizados. ID: ${registro_salvo._id}`
     );
     return true;
@@ -116,7 +116,7 @@ const analisar_metricas = async (
   historico_olhar,
   resultados_alvos
 ) => {
-  console.log(`\n--- INICIANDO ANÁLISE POSTERIOR DA FASE 1 (${client_id}) ---`);
+  console.debug(`\n--- INICIANDO ANÁLISE POSTERIOR DA FASE 1 (${client_id}) ---`);
 
   // objeto principal para armazenar os resultados detalhados e o resumo estatístico
   const resultados_participante = {
@@ -220,15 +220,15 @@ const analisar_metricas = async (
 
     // log de análise por alvo
     // deixar apenas para fase de integração por conta dos testes, pra versão final: tirar
-    console.log(
+    console.debug(
       `[ANÁLISE ALVO ${alvo_indice + 1}] motivo término bruto: ${
         alvo.motivo_termino
       }.`
     );
-    console.log(
+    console.debug(
       `  > tr: ${tempo_reacao}ms, foco máximo: ${foco_maximo}ms, desvio máximo: ${desvio_maximo}ms, duração total: ${duracao_total_alvo}ms`
     );
-    console.log(
+    console.debug(
       `  > classificação final: ${resultado_final}. concluiu duração mínima: ${concluiu_duracao_minima}. (critério: tempo_sucesso_min=${tempo_sucesso_min}ms, tempo_omissao_max=${tempo_omissao_max}ms)`
     );
 
@@ -279,12 +279,12 @@ const analisar_metricas = async (
   resultados_participante.resumo_metricas = resumo;
 
   // log de resumo: tirar depois da integração
-  console.log(`\n--- resumo de métricas da fase 1 ---`);
-  console.log(`total acertos: ${total_acertos}`);
-  console.log(`total comissão: ${total_comissao}`);
-  console.log(`total omissão: ${total_omissao}`);
-  console.log(`tr médio: ${tr_medio}ms (dp: ${tr_desvio_padrao}ms)`);
-  console.log(`------------------------\n`);
+  console.debug(`\n--- resumo de métricas da fase 1 ---`);
+  console.debug(`total acertos: ${total_acertos}`);
+  console.debug(`total comissão: ${total_comissao}`);
+  console.debug(`total omissão: ${total_omissao}`);
+  console.debug(`tr médio: ${tr_medio}ms (dp: ${tr_desvio_padrao}ms)`);
+  console.debug(`------------------------\n`);
 
   try {
     // busca ou cria (upsert) um documento de análise para este client_id e salva o resultado completo
@@ -293,7 +293,7 @@ const analisar_metricas = async (
       { $set: resultados_participante },
       { upsert: true, new: true }
     );
-    console.log(
+    console.debug(
       `Análise resumida da fase 1 salva/atualizada para ${client_id}`
     );
   } catch (saveError) {
@@ -354,7 +354,7 @@ const finalizar_fase1_completa = async (socket, motivo) => {
 };
 
 io.on("connection", (socket) => {
-  console.log(`novo cliente conectado. id: ${socket.id}`);
+  console.debug(`novo cliente conectado. id: ${socket.id}`);
 
   const estado_inicial = {
     fase_atual: 2, //teste
@@ -398,7 +398,7 @@ io.on("connection", (socket) => {
   
 parser.on("data", (raw) => {
   const data = raw.trim();
-  console.log(`Arduino -> ${data}`);
+  console.debug(`Arduino -> ${data}`);
 
   io.emit("arduino_event", { raw: data });
   if (data === "BUTTON_PRESSED") {
@@ -407,18 +407,18 @@ parser.on("data", (raw) => {
   else if (data.startsWith("PLANETA_")) {
     const planetaNumero = parseInt(data.replace("PLANETA_", ""));
     if (!isNaN(planetaNumero)) {
-      console.log(`Arduino -> ${planetaNumero}`);
+      console.debug(`Arduino -> ${planetaNumero}`);
       receber_planeta_numero(planetaNumero);
     }
   }
 });
 
   const receber_planeta_numero = (planetaNumero) => {
-    console.log(`Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`);
+    console.debug(`Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`);
     const estado = estados_clientes.get(socket.id);
 
     if (!estado || estado.fase_atual !== 2) {
-      console.log(`Cliente ${socket.id} não está na fase 2. Ignorando seleção de planeta.`);
+      console.debug(`Cliente ${socket.id} não está na fase 2. Ignorando seleção de planeta.`);
       return;
     }
     processar_selecao_planeta(socket, planetaNumero);
@@ -510,7 +510,7 @@ parser.on("data", (raw) => {
         estado.indice_alvo_atual + 1
       } de ${config_fase1.length}. foque por ${tempo_sucesso_min / 1000}s.`,
     });
-    console.log(
+    console.debug(
       `>>> alvo ${estado.indice_alvo_atual + 1} iniciado. Tempo Início: ${
         estado.historico_olhar_fase1.slice(-1)[0].timestamp
       }. cliente: ${socket.id}`
@@ -629,7 +629,7 @@ parser.on("data", (raw) => {
       if (err) {
         console.error("Erro ao mandar apagar LED:", err.message);
       } else {
-        console.log(`IoT <- LED_SELECAO_OFF`);
+        console.debug(`IoT <- LED_SELECAO_OFF`);
       }
     });
 
@@ -710,14 +710,14 @@ parser.on("data", (raw) => {
 
   // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front 
   socket.on("aguardando_iot", () => {
-    console.log(`Front-end renderizou a pergunta dos planetas e está aguardando o IoT. Ligando LED.`);
+    console.debug(`Front-end renderizou a pergunta dos planetas e está aguardando o IoT. Ligando LED.`);
 
     // comando pro arduino ascender o led
     serialPort.write("LED_SELECAO_ON\n", (err) => {
       if (err) {
         console.error("Erro ao mandar ascender LED:", err.message);
       } else {
-        console.log(`IoT <- LED_SELECAO_ON (LED ACESO)`);
+        console.debug(`IoT <- LED_SELECAO_ON (LED ACESO)`);
       }
     });
   });
@@ -742,11 +742,11 @@ parser.on("data", (raw) => {
       if (Array.isArray(config.fase1) && config.fase1.length > 0) {
         // Salva os alvos da fase 1
         estado.fase_atual = 1;
-        console.log("Alvos da fase 1 recebidos:", config.fase1);
+        console.debug("Alvos da fase 1 recebidos:", config.fase1);
         estado.config_alvos = config.fase1;
       } else {
         // Se não tiver alvos válidos para fase 1, sai da função
-        console.log(
+        console.debug(
           "Configuração inválida: alvos da fase 1 ausentes ou inválidos."
         );
         return;
@@ -766,7 +766,7 @@ parser.on("data", (raw) => {
     estado.fase_atual = 1;
 
     // Exibe no console quantos alvos foram recebidos para fase 1 e fase 3
-    console.log(
+    console.debug(
       `Configurações recebidas. Fase1: ${
         estado.config_alvos.length
       } alvos; Fase3: ${
@@ -781,7 +781,7 @@ parser.on("data", (raw) => {
   // --- ESCUTA DE DADOS DO OLHAR ---
   // comunicar
   socket.on("gaze_data", (data) => {
-    console.log(`Gaze data recebido do cliente ${socket.id}:`, data);
+    console.debug(`Gaze data recebido do cliente ${socket.id}:`, data);
 
     try {
       const { x, y } = data;
@@ -820,7 +820,7 @@ parser.on("data", (raw) => {
         if (esta_focando_na_area) {
           if (estado.foco_iniciado_timestamp === null) {
             estado.foco_iniciado_timestamp = Date.now();
-            console.log(
+            console.debug(
               `INICIANDO FOCO - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
             );
           } else {
@@ -835,7 +835,7 @@ parser.on("data", (raw) => {
           if (estado.foco_iniciado_timestamp !== null) {
             estado.foco_iniciado_timestamp = null;
           }
-          console.log(
+          console.debug(
             `NÃO FOCOU - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
           );
         }
@@ -999,7 +999,7 @@ parser.on("data", (raw) => {
   });
 
   socket.on("fase_1_tempo_excedido", () => {
-    console.log(`Cliente ${socket.id} - Fase 1 tempo excedido recebido.`);
+    console.debug(`Cliente ${socket.id} - Fase 1 tempo excedido recebido.`);
     const estado = estados_clientes.get(socket.id);
     if (!estado) return;
     estado.fase_atual = 2;
@@ -1031,7 +1031,7 @@ parser.on("data", (raw) => {
   });
 
   socket.on("disconnect", () => {
-    console.log(`cliente desconectado. id: ${socket.id}`);
+    console.debug(`cliente desconectado. id: ${socket.id}`);
     const estado = estados_clientes.get(socket.id);
     if (estado?.timer_fase) clearTimeout(estado.timer_fase);
     estados_clientes.delete(socket.id);
