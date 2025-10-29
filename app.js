@@ -27,37 +27,9 @@ serialPort.on("open", () => {
   console.log(`Serial aberto em ${SERIAL_PORT} @ ${SERIAL_BAUD_RATE}`);
 });
 
-parser.on("data", (raw) => {
-  const data = raw.trim();
-  console.log(`Arduino -> ${data}`);
 
-  io.emit("arduino_event", { raw: data });
-  if (data === "BUTTON_PRESSED") {
-    io.emit("arduino_button", { message: "BUTTON_PRESSED" });
-  }
-  else if (data.startsWith("PLANETA_")) {
-    const planetaNumero = parseInt(data.replace("PLANETA_", ""));
-    if (!isNaN(planetaNumero)) {
-      io.emit("planeta_selecionado", { planeta: planetaNumero });
-      console.log(`Arduino -> ${planetaNumero}`);
-    }
-  }
-});
 
-  io.on("planeta_selecionado", (data) => {
-    console.log(`Recebido planeta selecionado: ${data.planeta} do cliente ${socket.id}`);
-    const estado = estados_clientes.get(socket.id);
-    if (!estado || estado.fase_atual !== 2) {
-      console.log(`Cliente ${socket.id} não está na fase 2. Ignorando seleção de planeta.`);
-      return;
-    }
-    
-    const planeta = data.planeta;
-    console.log(`data -> ${data.p}`);
-    console.log(`Planeta ${planeta} selecionado via Arduino. Cliente: ${socket.id}`);
-    
-    processar_selecao_planeta(socket, planeta);
-  });
+
 
 
 
@@ -89,7 +61,7 @@ io.on("connection", (socket) => {
   console.log(`novo cliente conectado. id: ${socket.id}`);
 
   const estado_inicial = {
-    fase_atual: 0,
+    fase_atual: 2, //teste
     config_alvos: [],
 
     // métricas gerais das fases
@@ -128,6 +100,35 @@ io.on("connection", (socket) => {
     foco_concluido_radar: false,
   };
   estados_clientes.set(socket.id, estado_inicial);
+
+parser.on("data", (raw) => {
+  const data = raw.trim();
+  console.log(`Arduino -> ${data}`);
+
+  io.emit("arduino_event", { raw: data });
+  if (data === "BUTTON_PRESSED") {
+    io.emit("arduino_button", { message: "BUTTON_PRESSED" });
+  }
+  else if (data.startsWith("PLANETA_")) {
+    const planetaNumero = parseInt(data.replace("PLANETA_", ""));
+    if (!isNaN(planetaNumero)) {
+      io.emit("planeta_selecionado", { planeta: planetaNumero });
+      console.log(`Arduino -> ${planetaNumero}`);
+      receber_planeta_numero(planetaNumero);
+    }
+  }
+});
+
+  const receber_planeta_numero = (planetaNumero) => {
+    console.log(`Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`);
+    const estado = estados_clientes.get(socket.id);
+
+    if (!estado || estado.fase_atual !== 2) {
+      console.log(`Cliente ${socket.id} não está na fase 2. Ignorando seleção de planeta.`);
+      return;
+    }
+    processar_selecao_planeta(socket, planetaNumero);
+  };
 
   // função que processa a seleção de um planeta na fase 2 (chamar no IOT)
   const processar_selecao_planeta = (socket, planeta) => {
@@ -748,4 +749,4 @@ io.on("connection", (socket) => {
 // --- INICIALIZAÇÃO DO SERVIDOR HTTP ---
 httpServer.listen(port, host, () => {
   console.log(`servidor rodando em http://${host}:${port}`);
-})
+});
