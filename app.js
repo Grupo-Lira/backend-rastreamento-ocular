@@ -357,7 +357,7 @@ io.on("connection", (socket) => {
   console.log(`novo cliente conectado. id: ${socket.id}`);
 
   const estado_inicial = {
-    fase_atual: 0,
+    fase_atual: 2, //teste
     config_alvos: [],
     timer_fase1: null,
 
@@ -377,7 +377,8 @@ io.on("connection", (socket) => {
     alvos_rodada2: [1, 3, 6],
     acertos_fase2: 0,
     erros_fase2: 0,
-    planetas_clicados: [],
+    planetas_clicados: [], // histórico de planetas clicados (por rodada)
+    alvos_vistos_fase2: [], // alvos corretos já vistos (em qualquer rodada)
     tempo_inicio_rodada: null,
 
     // métricas da fase 3 (atenção dividida)
@@ -394,6 +395,34 @@ io.on("connection", (socket) => {
   };
 
   estados_clientes.set(socket.id, estado_inicial);
+  
+parser.on("data", (raw) => {
+  const data = raw.trim();
+  console.log(`Arduino -> ${data}`);
+
+  io.emit("arduino_event", { raw: data });
+  if (data === "BUTTON_PRESSED") {
+    io.emit("arduino_button", { message: "BUTTON_PRESSED" });
+  }
+  else if (data.startsWith("PLANETA_")) {
+    const planetaNumero = parseInt(data.replace("PLANETA_", ""));
+    if (!isNaN(planetaNumero)) {
+      console.log(`Arduino -> ${planetaNumero}`);
+      receber_planeta_numero(planetaNumero);
+    }
+  }
+});
+
+  const receber_planeta_numero = (planetaNumero) => {
+    console.log(`Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`);
+    const estado = estados_clientes.get(socket.id);
+
+    if (!estado || estado.fase_atual !== 2) {
+      console.log(`Cliente ${socket.id} não está na fase 2. Ignorando seleção de planeta.`);
+      return;
+    }
+    processar_selecao_planeta(socket, planetaNumero);
+  };
 
   // função que processa a seleção de um planeta na fase 2 (chamar no IOT)
   const processar_selecao_planeta = (socket, planeta) => {
@@ -412,6 +441,10 @@ io.on("connection", (socket) => {
     const correto = alvos_atuais.includes(planeta);
     if (correto) {
       estado.acertos_fase2++;
+      // registra alvo correto como visto
+      if (!estado.alvos_vistos_fase2.includes(planeta)) {
+        estado.alvos_vistos_fase2.push(planeta);
+      }
     } else {
       estado.erros_fase2++;
     }
@@ -420,8 +453,6 @@ io.on("connection", (socket) => {
     socket.emit("resposta_planeta", {
       planeta,
       correto,
-      acertos: estado.acertos_fase2,
-      erros: estado.erros_fase2,
     });
 
     // verifica se já atingiu o limite de cliques para finalizar a rodada (1 clique por planeta)
@@ -602,13 +633,6 @@ io.on("connection", (socket) => {
       }
     });
 
-    socket.emit("rodada_finalizada", {
-      fase: 2,
-      rodada: estado.rodada_atual_fase2,
-      acertos: estado.acertos_fase2,
-      erros: estado.erros_fase2,
-    });
-
     // se foi a primeira rodada, inicia a segunda
     if (estado.rodada_atual_fase2 === 1) {
       estado.rodada_atual_fase2 = 2;
@@ -618,11 +642,21 @@ io.on("connection", (socket) => {
     } else {
       // se foi a segunda rodada, finaliza a fase 2 e inicia a fase 3
       estado.fase_atual = 3;
+      // consolida os alvos da fase 2 e separa vistos/ignorados
+      const todos_alvos_fase2 = [
+        ...new Set([...(estado.alvos_rodada1 || []), ...(estado.alvos_rodada2 || [])]),
+      ];
+      const planetas_vistos = [...new Set(estado.alvos_vistos_fase2 || [])];
+      const planetas_ignorados = todos_alvos_fase2.filter(
+        (p) => !planetas_vistos.includes(p)
+      );
+
       socket.emit("fase_atual_finalizada", {
         fase: 2,
         mensagem: "Fase 2 (atenção seletiva) concluída.",
-        acertos_totais: estado.acertos_fase2,
-        erros_totais: estado.erros_fase2,
+        acertos: estado.acertos_fase2,
+        planetas_vistos,
+        planetas_ignorados,
       });
       // se houver configuração (pares de alvos) para a fase 3, inicia
       if (
@@ -674,9 +708,9 @@ io.on("connection", (socket) => {
     iniciar_fase3();
   };
 
-  // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front
-  socket.on("fase2_pronta_para_cliques", () => {
-    console.log(`Front-end renderizou a pergunta dos planetas. Ligando LED.`);
+  // ligar o led quando a tela de pergunta dos planetas estiver rendereizada no front 
+  socket.on("aguardando_iot", () => {
+    console.log(`Front-end renderizou a pergunta dos planetas e está aguardando o IoT. Ligando LED.`);
 
     // comando pro arduino ascender o led
     serialPort.write("LED_SELECAO_ON\n", (err) => {
