@@ -27,12 +27,6 @@ serialPort.on("open", () => {
   console.log(`Serial aberto em ${SERIAL_PORT} @ ${SERIAL_BAUD_RATE}`);
 });
 
-
-
-
-
-
-
 // calcula a média e o desvio padrão de um array de números (tempos em que o usuário iniciou o foco no alvo)
 const calcular_desvio_padrao = (tempos) => {
   if (tempos.length === 0) return { media: 0, desvioPadrao: 0 };
@@ -100,7 +94,7 @@ io.on("connection", (socket) => {
     foco_concluido_radar: false,
   };
   estados_clientes.set(socket.id, estado_inicial);
-
+  
 parser.on("data", (raw) => {
   const data = raw.trim();
   console.log(`Arduino -> ${data}`);
@@ -112,7 +106,6 @@ parser.on("data", (raw) => {
   else if (data.startsWith("PLANETA_")) {
     const planetaNumero = parseInt(data.replace("PLANETA_", ""));
     if (!isNaN(planetaNumero)) {
-      io.emit("planeta_selecionado", { planeta: planetaNumero });
       console.log(`Arduino -> ${planetaNumero}`);
       receber_planeta_numero(planetaNumero);
     }
@@ -417,22 +410,6 @@ parser.on("data", (raw) => {
       }
     });
   });
-
-  // --- RECEBIMENTO DA SELEÇÃO DE PLANETA NA FASE 2 ---
-  // io.on("planeta_selecionado", (data) => {
-  //   console.log(`Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`);
-  //   const estado = estados_clientes.get(socket.id);
-  //   if (!estado || estado.fase_atual !== 2) {
-  //     console.log(`Cliente ${socket.id} não está na fase 2. Ignorando seleção de planeta.`);
-  //     return;
-  //   }
-    
-  //   const planeta = planetaNumero;
-  //   console.log(`data -> ${data.p}`);
-  //   console.log(`Planeta ${planeta} selecionado via Arduino. Cliente: ${socket.id}`);
-    
-  //   processar_selecao_planeta(socket, planeta);
-  // });
 
   // --- RECEBIMENTO DAS CONFIGURAÇÕES (COORDENADAS) E INÍCIO DO JOGO ---
   socket.on("iniciar_experimento_com_config", (config) => {
