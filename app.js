@@ -471,7 +471,7 @@ parser.on("data", (raw) => {
 
     if (!alvo_atual) {
       // Fase 1 concluída, inicia Fase 2
-      estado.fase_atual = 2;
+      //estado.fase_atual = 2;
       socket.emit("fase_concluida", {
         fase: 1,
         mensagem: "Fase 1 (Atenção Sustentada) concluída.",
@@ -821,7 +821,7 @@ parser.on("data", (raw) => {
           if (estado.foco_iniciado_timestamp === null) {
             estado.foco_iniciado_timestamp = Date.now();
             console.debug(
-              `INICIANDO FOCO - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
+              `INICIANDO FOCO - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_sucesso_min}ms`
             );
           } else {
             const tempo_focado = Date.now() - estado.foco_iniciado_timestamp;
@@ -836,7 +836,7 @@ parser.on("data", (raw) => {
             estado.foco_iniciado_timestamp = null;
           }
           console.debug(
-            `NÃO FOCOU - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_minimo_foco}ms`
+            `NÃO FOCOU - Cliente ${socket.id} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.foco_iniciado_timestamp}ms - Mínimo: ${tempo_sucesso_min}ms`
           );
         }
         return; // já tratou fase 1
@@ -1002,7 +1002,7 @@ parser.on("data", (raw) => {
     console.debug(`Cliente ${socket.id} - Fase 1 tempo excedido recebido.`);
     const estado = estados_clientes.get(socket.id);
     if (!estado) return;
-    estado.fase_atual = 2;
+    //estado.fase_atual = 2;
 
     // Garante que o alvo atual seja finalizado antes de encerrar a fase
     if (estado.indice_alvo_atual < estado.config_alvos.length) {
