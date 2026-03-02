@@ -1,18 +1,18 @@
 
-# Teste de Desempenho Contínuo, Orientado po Visão Computacional 
+# Teste de Desempenho Contínuo, Orientado po Visão Computacional
 
-Este projeto implementa um **servidor Node.js** que integra **comunicação via Arduino e análise de desempenho cognitivo** em múltiplas fases de atenção (sustentada, seletiva e dividida).  
+Este projeto implementa um **servidor Node.js** que integra **comunicação via Arduino e análise de desempenho cognitivo** em múltiplas fases de atenção (sustentada, seletiva e dividida).
 Ele utiliza **Express**, **Socket.IO**, **MongoDB** e **SerialPort** para comunicação em tempo real entre o backend, o dispositivo de hardware e a aplicação cliente.
 
 ---
 
 ## 🚀 Tecnologias Utilizadas
 
-- **Node.js** — Plataforma de execução do servidor  
-- **Express** — Framework web para criação de rotas e middlewares  
-- **Socket.IO** — Comunicação em tempo real via WebSocket  
-- **SerialPort** — Comunicação com o Arduino via porta serial  
-- **MongoDB + Mongoose** — Armazenamento e modelagem de dados  
+- **Node.js** — Plataforma de execução do servidor
+- **Express** — Framework web para criação de rotas e middlewares
+- **Socket.IO** — Comunicação em tempo real via WebSocket
+- **SerialPort** — Comunicação com o Arduino via porta serial
+- **MongoDB + Mongoose** — Armazenamento e modelagem de dados
 - **Arduino (IOT)** — Envio de eventos físicos (botões, sensores etc.)
 
 ---
@@ -21,12 +21,6 @@ Ele utiliza **Express**, **Socket.IO**, **MongoDB** e **SerialPort** para comuni
 
 ```
 
-.
-├── models/
-│   ├── Dados.js              # Modelo Mongoose para dados brutos de rastreamento
-│   └── ResultadoAnalise.js   # Modelo Mongoose para os resultados processados
-├── server.js                 # Servidor principal (Express + Socket.IO + Serial)
-└── README.md
 
 ````
 
@@ -39,6 +33,7 @@ Ele utiliza **Express**, **Socket.IO**, **MongoDB** e **SerialPort** para comuni
 Antes de iniciar, instale:
 - **Node.js 18+**
 - **MongoDB local**
+- **Redis local**
 - **Arduino conectado via USB**
 
 ---
@@ -46,17 +41,17 @@ Antes de iniciar, instale:
 ### 2️⃣ Instalação das dependências
 
 ```bash
-npm install express socket.io serialport mongoose
+npm install
 ````
 
 ---
 
 ### 3️⃣ Configuração da porta serial
 
-No arquivo principal, ajuste a constante `SERIAL_PORT` conforme a porta do seu Arduino:
+No arquivo */src/arduino/config/serial.js*, ajuste a constante `SERIAL_PORT` conforme a porta do seu Arduino:
 
 ```js
-const SERIAL_PORT = "COM13"; 
+const SERIAL_PORT = "COM13";
 ```
 
 ---
@@ -71,10 +66,11 @@ const MONGODB_URI = "mongodb://127.0.0.1:27017/rastreamento-ocular";
 
 ---
 
-## ▶️ Executando o Servidor
+## ▶️ Inicialização do sistema
 
 ```bash
-node app.js
+1. sudo docker compose --env-file .env.development up -d
+2. npm run dev
 ```
 
 O servidor iniciará em:
