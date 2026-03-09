@@ -21,6 +21,14 @@ import {
 const ALTERNANCIA_ALVO_MS = 15000;
 
 export function registrarFase3Handlers(socket) {
+  // garante 1 único timer por cliente 
+  const limparTimerAlternancia = () => {
+    if (socket.data.fase3Timer) {
+      clearInterval(socket.data.fase3Timer); 
+      socket.data.fase3Timer = null;
+    }
+  };
+
   // muda o alvo quando der o tempo de 15s, ou quando o cliente pedir, e registra a troca no histórico do experimento
   const alternarAlvoFase3 = async (motivo = "TIMER") => {
     if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {
@@ -66,8 +74,9 @@ export function registrarFase3Handlers(socket) {
   socket.on("iniciar_fase3", async (config) => {
     console.log(`Cliente iniciou fase 3 com config:`, config);
 
-    socket.data.fase3Pronta = false; //  garantir que não vai processar dados de olhar antes de iniciar a fase
-    socket.data.fase3Encerrada = false; // flag pra evitar processar dados ou alternar alvo depois de finalizar a fase
+    limparTimerAlternancia();
+    socket.data.fase3Pronta = false;
+    socket.data.fase3Encerrada = false;
 
     //TODO-VALIDAR-USUARIO-config.usuarioId
     //TODO-VALIDAR-ALVOS-config.fase1
@@ -78,6 +87,7 @@ export function registrarFase3Handlers(socket) {
 
     const alvoInicial = String(config?.alvoInicialNome).toUpperCase();
 
+    // define o contexto do socket para evitar usar experimento antigo
     socket.data.experimentoId = expId;
     socket.data.usuarioId = config.usuarioId;
 
@@ -248,6 +258,7 @@ export function registrarFase3Handlers(socket) {
 
         if (resultadoFinalizacao?.faseConcluida) {
           socket.data.fase3Encerrada = true;
+          limparTimerAlternancia();
         }
       }
     } catch (err) {
@@ -261,6 +272,7 @@ export function registrarFase3Handlers(socket) {
     }
 
     socket.data.fase3Encerrada = true;
+    limparTimerAlternancia();
     const currDate = Date.now();
 
     const estado = await buscarExperimentoFase3Redis(socket.data.experimentoId);
@@ -278,6 +290,7 @@ export function registrarFase3Handlers(socket) {
 
   socket.on("disconnect", async () => {
     try {
+      limparTimerAlternancia();
       await finalizarFase3(socket.data.experimentoId);
     } catch (err) {
       console.error("Erro ao limpar fase 3 no disconnect:", err);
