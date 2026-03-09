@@ -16,6 +16,8 @@ import { MOTIVO_TEMPO_ESGOTADO } from "../../utils/constantes.js";
 
 import { EXPERIMENTO_STATUS_EM_EXECUCAO } from "../../utils/constantes.js";
 
+// funções chamadas pelo handler para interagir com o mongo e o redis, e realizar as ações necessárias para o fluxo da fase 1
+
 const iniciarDestaqueEstrela = async (expId) => {
   const estado = await buscarExperimentoFase1Redis(expId);
 
@@ -31,13 +33,14 @@ const finalizarFocoAlvo = async (
   currDate,
   socket,
 ) => {
-  const historicoOlhar = await getEstadoExperimentoHistoricoFase1(expId);
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase1(expId); // pega o histórico do olhar do redis para salvar no mongo junto com o resultado do alvo
 
   console.debug(
     `Finalizando foco do alvo ${estado.alvoAtual} para experimento ${expId}. Motivo: ${motivoTermino}. Histórico de olhar:`,
     historicoOlhar,
   );
 
+  // atualiza o mongo com o resultado do alvo e o histórico do olhar, para depois limpar o histórico do olhar do redis
   await ExperimentosFase1.findByIdAndUpdate(
     expId,
     {
@@ -54,7 +57,7 @@ const finalizarFocoAlvo = async (
     { returnDocument: "after" },
   );
 
-  await clearEstadoExperimentoHistoricoFase1(expId);
+  await clearEstadoExperimentoHistoricoFase1(expId); // limpa o histórico do olhar do redis para o próximo alvo
 
   socket.emit("alvo_fase1_concluido", {
     fase: 1,
@@ -74,6 +77,7 @@ const finalizarFocoAlvo = async (
     await finalizarFase1(expId, currDate, motivoTermino);
 
     return;
+    // se o motivo de término não for tempo esgotado, mas sim foco completo, inicia o próximo alvo
   } else if (motivoTermino !== MOTIVO_TEMPO_ESGOTADO) {
     estado.alvoAtual += 1;
     estado.focoConsecutivo = 0;

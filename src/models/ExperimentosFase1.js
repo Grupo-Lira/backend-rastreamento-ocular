@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+// schemas criados no mongo 
 const historicoOlharSchema = new mongoose.Schema(
   {
     is_focando: Boolean,
@@ -25,6 +26,7 @@ const historicoOlharSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// resultadoAlvoSchema registra o resultado de cada alvo apresentado, incluindo o motivo do término (focou ou tempo esgotado) e os timestamps de início e fim do alvo
 const resultadoAlvoSchema = new mongoose.Schema(
   {
     alvo_indice: Number,
@@ -39,6 +41,7 @@ const resultadoAlvoSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// experimentos são nada mais nada menos que um histórico de dados de olhar + resultados dos alvos para cada cliente
 const ExperimentosFase1Schema = new mongoose.Schema(
   {
     client_id: { type: String, required: true },
