@@ -45,7 +45,7 @@ const resultadoAlvoSchema = new mongoose.Schema(
     },
     motivo_termino: {
       type: String,
-      enum: ["FOCOU", "TEMPO"],
+      enum: ["FOCOU", "TEMPO", "TROCA"],
       required: true,
     },
     tempo_inicio_alvo: { type: Date, default: Date.now },
