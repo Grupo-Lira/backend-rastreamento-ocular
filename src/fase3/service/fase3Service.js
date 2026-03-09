@@ -18,13 +18,14 @@ import {
   LARGURA_TELA_PADRAO,
   MOTIVO_FOCO_COMPLETO,
   MOTIVO_TEMPO_ESGOTADO,
+  MOTIVO_TROCA_ALVO,
 } from "../../utils/constantes.js";
 
 const iniciarDestaqueAlvo = async (expId) => {
   const estado = await buscarExperimentoFase3Redis(expId);
 
-  const nomeAlvoAtual = estado?.nomeAlvoAtual; 
-  const alvoAtual = await buscarAlvoFase3Redis(expId, nomeAlvoAtual); 
+  const nomeAlvoAtual = estado?.nomeAlvoAtual;
+  const alvoAtual = await buscarAlvoFase3Redis(expId, nomeAlvoAtual);
 
   return alvoAtual;
 };
@@ -68,10 +69,10 @@ const finalizarFocoAlvoFase3 = async (
     });
 
     await finalizarFase3(expId);
-    return;
+    return { faseConcluida: true };
   }
 
-  // verifica se tem mais alvos para brilhar 
+  // verifica se tem mais alvos para brilhar
   if (motivoTermino === MOTIVO_FOCO_COMPLETO) {
     const indiceAtual = ALVOS_FASE3.indexOf(estado.nomeAlvoAtual);
     const proximoNomeAlvo = ALVOS_FASE3[indiceAtual + 1];
@@ -82,7 +83,7 @@ const finalizarFocoAlvoFase3 = async (
       });
 
       await finalizarFase3(expId);
-      return;
+      return { faseConcluida: true };
     }
 
     estado.nomeAlvoAtual = proximoNomeAlvo;
@@ -99,7 +100,34 @@ const finalizarFocoAlvoFase3 = async (
       fase: 3,
       alvo: proximoAlvo?.nome ?? proximoNomeAlvo,
     });
+
+    return {
+      faseConcluida: false,
+      alvoAtual: proximoAlvo?.nome ?? proximoNomeAlvo,
+    };
   }
+};
+
+const registrarTrocaAlvoFase3 = async (expId, estado, currDate) => {
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase3(expId);
+
+  await ExperimentosFase3.findByIdAndUpdate(
+    expId,
+    {
+      $push: {
+        resultados_alvos: {
+          nome_alvo: estado.nomeAlvoAtual,
+          motivo_termino: MOTIVO_TROCA_ALVO,
+          tempo_inicio_alvo: estado.timestampInicio,
+          tempo_fim_alvo: currDate,
+        },
+        historico_olhar: { $each: historicoOlhar },
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  await clearEstadoExperimentoHistoricoFase3(expId);
 };
 
 const finalizarFase3 = async (expId) => {
@@ -197,7 +225,11 @@ export {
   buscarAlvoFase3Redis,
   buscarExperimentoFase3Redis,
   finalizarFase3,
-  finalizarFocoAlvoFase3, incluirDadoHistoricoFase3Redis, iniciarDestaqueAlvo, salvarAlvosFase3Redis,
+  finalizarFocoAlvoFase3,
+  incluirDadoHistoricoFase3Redis,
+  iniciarDestaqueAlvo,
+  registrarTrocaAlvoFase3,
+  salvarAlvosFase3Redis,
   salvarExperimentoFase3,
   salvarExperimentoFase3Redis
 };
