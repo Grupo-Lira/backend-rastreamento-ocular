@@ -1,95 +1,204 @@
-// FASE 3: Atenção Dividida
-const iniciar_fase3 = () => {
-  const estado = estados_clientes.get(socket.id);
-  if (!estado) return;
+import {
+  clearAlvosFase3,
+  clearEstadoExperimentoFase3,
+  clearEstadoExperimentoHistoricoFase3,
+  getAlvoFase3ByNome,
+  getEstadoExperimentoFase3ByExpId,
+  getEstadoExperimentoHistoricoFase3,
+  salvarAlvoFase3,
+  salvarEstadoExperimentoFase3,
+  salvarEstadoExperimentoHistoricoFase3,
+  updateEstadoExperimentoFase3,
+} from "../../database/redis/redisHandlers.js";
+import ExperimentosFase3 from "../../models/ExperimentosFase3.js";
+import {
+  ALVO,
+  ALVOS_FASE3,
+  EXPERIMENTO_STATUS_EM_EXECUCAO,
+  LARGURA_TELA_PADRAO,
+  MOTIVO_FOCO_COMPLETO,
+  MOTIVO_TEMPO_ESGOTADO,
+} from "../../utils/constantes.js";
 
-  const config_fase3 = estado.config_alvos_fase3; // Usa as coordenadas recebidas do cliente
-  const alvos_atuais = config_fase3[estado.indice_alvos_fase3];
+const iniciarDestaqueAlvo = async (expId) => {
+  const estado = await buscarExperimentoFase3Redis(expId);
 
-  // Verifica se todos os pares de alvos foram completados
-  if (!alvos_atuais) {
+  const nomeAlvoAtual = estado?.nomeAlvoAtual; 
+  const alvoAtual = await buscarAlvoFase3Redis(expId, nomeAlvoAtual); 
+
+  return alvoAtual;
+};
+
+const finalizarFocoAlvoFase3 = async (
+  expId,
+  estado,
+  motivoTermino,
+  currDate,
+  socket,
+) => {
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase3(expId);
+
+  await ExperimentosFase3.findByIdAndUpdate(
+    expId,
+    {
+      $push: {
+        resultados_alvos: {
+          nome_alvo: estado.nomeAlvoAtual,
+          motivo_termino: motivoTermino,
+          tempo_inicio_alvo: estado.timestampInicio,
+          tempo_fim_alvo: currDate,
+        },
+        historico_olhar: { $each: historicoOlhar },
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  await clearEstadoExperimentoHistoricoFase3(expId);
+
+  socket.emit("alvo_fase3_concluido", {
+    fase: 3,
+    alvo: estado.nomeAlvoAtual,
+    motivo_termino: motivoTermino,
+  });
+
+  if (motivoTermino === MOTIVO_TEMPO_ESGOTADO) {
     socket.emit("fase_concluida", {
-      mensagem: "Fase 3 (Atenção Dividida) concluída.",
-      total_pares_alvos: config_fase3.length,
-      total_erros_omissao: estado.erros_omissao_fase3,
-      total_erros_desvio: estado.erros_desvio_foco_fase3,
-      metricas: calcular_desvio_padrao(estado.tempos_reacao_fase3),
+      fase: 3,
     });
+
+    await finalizarFase3(expId);
     return;
   }
 
-  // Reset do estado para novo par de alvos
-  if (estado.timer_fase) clearTimeout(estado.timer_fase);
-  estado.tempo_foco_inicio_fase = Date.now();
-  estado.tempo_primeiro_foco_estrela = null;
-  estado.tempo_primeiro_foco_radar = null;
-  estado.foco_iniciado_estrela = null;
-  estado.foco_iniciado_radar = null;
-  estado.foco_concluido_estrela = false;
-  estado.foco_concluido_radar = false;
+  // verifica se tem mais alvos para brilhar 
+  if (motivoTermino === MOTIVO_FOCO_COMPLETO) {
+    const indiceAtual = ALVOS_FASE3.indexOf(estado.nomeAlvoAtual);
+    const proximoNomeAlvo = ALVOS_FASE3[indiceAtual + 1];
 
-  // Timer para erro de omissão
-  estado.timer_fase = setTimeout(() => {
-    estado.erros_omissao_fase3++;
-    finalizar_alvo_fase3(false);
-  }, tempo_maximo_alvo);
+    if (!proximoNomeAlvo) {
+      socket.emit("fase_concluida", {
+        fase: 3,
+      });
 
-  socket.emit("fase_iniciada", {
-    fase: 3,
-    alvos: alvos_atuais,
-    mensagem: `fase 3 (atenção dividida). par de alvos ${
-      estado.indice_alvos_fase3 + 1
-    } de ${config_fase3.length}. foque em ambos por 5s.`,
-  });
+      await finalizarFase3(expId);
+      return;
+    }
+
+    estado.nomeAlvoAtual = proximoNomeAlvo;
+    estado.focoConsecutivo = 0;
+    estado.foraConsecutivo = 0;
+    estado.inicioFocoTs = 0;
+    estado.ultimoFocoTs = 0;
+    estado.timestampInicio = currDate;
+
+    await atualizarEstadoExperimentoFase3Redis(expId, estado);
+
+    const proximoAlvo = await buscarAlvoFase3Redis(expId, proximoNomeAlvo);
+    socket.emit("brilhar_alvo_fase3", {
+      fase: 3,
+      alvo: proximoAlvo?.nome ?? proximoNomeAlvo,
+    });
+  }
 };
 
-const estado_inicial = {
-  // métricas da fase 3 (atenção dividida)
-  indice_alvos_fase3: 0, // serve para navegar pelos pares de alvos da fase 3
-  tempo_primeiro_foco_estrela: null,
-  tempo_primeiro_foco_radar: null,
-  foco_iniciado_estrela: null,
-  foco_iniciado_radar: null,
-  tempos_reacao_fase3: [], // array para armazenar tempos de reação combinados
-  erros_omissao_fase3: 0,
-  erros_desvio_foco_fase3: 0,
-  foco_concluido_estrela: false,
-  foco_concluido_radar: false,
+const finalizarFase3 = async (expId) => {
+  if (!expId) return;
+
+  await Promise.all([
+    clearAlvosFase3(expId),
+    clearEstadoExperimentoFase3(expId),
+    clearEstadoExperimentoHistoricoFase3(expId),
+  ]);
 };
 
-estados_clientes.set(socket.id, estado_inicial);
+const salvarExperimentoFase3 = async (usuarioId) => {
+  try {
+    const experimentoFase3 = await ExperimentosFase3.create({
+      client_id: usuarioId,
+      fase: 3,
+      status: EXPERIMENTO_STATUS_EM_EXECUCAO,
+      data_hora: new Date(),
+      historico_olhar: [],
+      resultados_alvos: [],
+    });
 
-// FASE 3 - Finaliza o par de alvos atual e passa para o próximo par
-const finalizar_alvos_fase3 = (sucesso = false) => {
-  const estado = estados_clientes.get(socket.id);
-  if (!estado || estado.fase_atual !== 3) return;
+    return experimentoFase3;
+  } catch (err) {
+    console.error("Erro ao salvar experimento fase 3:", err);
+    throw err;
+  }
+};
 
-  if (estado.timer_fase) clearTimeout(estado.timer_fase);
+const salvarExperimentoFase3Redis = async (
+  expId,
+  nomeAlvoInicial = ALVO.ESTRELA,
+) => {
+  await salvarEstadoExperimentoFase3(expId, nomeAlvoInicial);
+};
 
-  // registra o tempo de reação combinado (média entre os dois alvos)
-  if (
-    estado.tempo_primeiro_foco_estrela !== null &&
-    estado.tempo_primeiro_foco_radar !== null
-  ) {
-    const tempo_medio =
-      (estado.tempo_primeiro_foco_estrela + estado.tempo_primeiro_foco_radar) /
-      2;
-    estado.tempos_reacao_fase3.push(tempo_medio);
+const buscarExperimentoFase3Redis = async (experimentoFase3Id) => {
+  const estadoExperimentoFase3 =
+    await getEstadoExperimentoFase3ByExpId(experimentoFase3Id);
+  return estadoExperimentoFase3;
+};
+
+const atualizarEstadoExperimentoFase3Redis = async (expId, newEstado) => {
+  await updateEstadoExperimentoFase3(expId, newEstado);
+};
+
+const salvarAlvosFase3Redis = async (expId, alvos) => {
+  if (!Array.isArray(alvos) || alvos.length === 0) {
+    throw new Error("Lista de alvos da fase 3 inválida.");
   }
 
-  const metricas = calcular_desvio_padrao(estado.tempos_reacao_fase3);
+  // Enriquecer alvos com nome baseado na ordem esperada da fase 3
+  const alvosEnriquecidos = alvos.map((alvo, index) => ({
+    ...alvo,
+    nome: ALVOS_FASE3[index] || ALVO.ESTRELA,
+  }));
 
-  socket.emit("fase_atual_finalizada", {
-    fase: 3,
-    mensagem: "Fase 3 (atenção dividida) concluída.",
-    par_alvos_concluido: estado.indice_alvos_fase3 + 1,
-    sucesso: sucesso,
-    tempo_medio_reacao: metricas.media,
-    total_erros_omissao: estado.erros_omissao_fase3,
-    total_erros_desvio: estado.erros_desvio_foco_fase3,
-  });
-
-  // avança e inicia o próximo par de alvos
-  estado.indice_alvos_fase3++;
-  iniciar_fase3();
+  await salvarAlvoFase3(expId, alvosEnriquecidos);
 };
+
+const buscarAlvoFase3Redis = async (expId, nomeAlvo) => {
+  const alvo = await getAlvoFase3ByNome(expId, nomeAlvo);
+  return alvo;
+};
+
+const getLadoTela = (x, larguraTela = LARGURA_TELA_PADRAO) => {
+  const metadeTela = larguraTela / 2;
+  return x < metadeTela ? "ESQUERDO" : "DIREITO";
+};
+
+const incluirDadoHistoricoFase3Redis = async (
+  expId,
+  alvo,
+  currDate,
+  isFocando,
+  olharCoord,
+  tipoEvento,
+  larguraTela,
+) => {
+  const currentDadoOlhar = {
+    is_focando: isFocando,
+    timestamp: currDate,
+    nome_alvo: alvo.nome,
+    olhar_coord: olharCoord,
+    tipo: tipoEvento,
+    lado_tela: getLadoTela(olharCoord.x, larguraTela),
+  };
+
+  await salvarEstadoExperimentoHistoricoFase3(expId, currentDadoOlhar);
+};
+
+export {
+  atualizarEstadoExperimentoFase3Redis,
+  buscarAlvoFase3Redis,
+  buscarExperimentoFase3Redis,
+  finalizarFase3,
+  finalizarFocoAlvoFase3, incluirDadoHistoricoFase3Redis, iniciarDestaqueAlvo, salvarAlvosFase3Redis,
+  salvarExperimentoFase3,
+  salvarExperimentoFase3Redis
+};
+
