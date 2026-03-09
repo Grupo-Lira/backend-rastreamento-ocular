@@ -7,3 +7,13 @@ export const MOTIVO_TEMPO_ESGOTADO = "TEMPO";
 export const STATUS_RODADA1 = "RODADA1";
 export const STATUS_RODADA2 = "RODADA2";
 export const STATUS_FINALIZADO = "FINALIZADO";
+
+// FASE3
+export const ALVOS_FASE3 = ["ESTRELA", "RADAR"];
+
+export const ALVO = {
+  ESTRELA: "ESTRELA",
+  RADAR: "RADAR",
+};
+
+export const LARGURA_TELA_PADRAO = 1920; 
