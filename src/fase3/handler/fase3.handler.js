@@ -21,10 +21,10 @@ import {
 const ALTERNANCIA_ALVO_MS = 15000;
 
 export function registrarFase3Handlers(socket) {
-  // garante 1 único timer por cliente 
+  // garante 1 único timer por cliente
   const limparTimerAlternancia = () => {
     if (socket.data.fase3Timer) {
-      clearInterval(socket.data.fase3Timer); 
+      clearInterval(socket.data.fase3Timer);
       socket.data.fase3Timer = null;
     }
   };
@@ -91,6 +91,7 @@ export function registrarFase3Handlers(socket) {
     socket.data.experimentoId = expId;
     socket.data.usuarioId = config.usuarioId;
 
+    console.log(`Experimento de fase 3 ${config.fase3}}. Iniciando alvos...`);
     await salvarExperimentoFase3Redis(expId, alvoInicial); // faz o mesmo no redis
     await salvarAlvosFase3Redis(expId, config.fase3); // cria os alvos no redis
 
@@ -122,13 +123,16 @@ export function registrarFase3Handlers(socket) {
   socket.on("gaze_data_fase3", async (data) => {
     const currDate = Date.now();
 
+    // console.debug(
+    //   `Gaze data recebido do cliente ${socket.data.usuarioId}:`,
+    //   data.x,
+    //   data.y,
+    //   `Timestamp: ${data.timestamp}`,
+    // );
     console.debug(
       `Gaze data recebido do cliente ${socket.data.usuarioId}:`,
-      data.x,
-      data.y,
-      `Timestamp: ${data.timestamp}`,
+      data,
     );
-
     try {
       if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {
         return;
@@ -158,6 +162,7 @@ export function registrarFase3Handlers(socket) {
       if (!alvo) return;
 
       const alvoExibido = alvo?.nome;
+      console.log(`alvo exibido: ${alvoExibido} | x: ${x} | y: ${y}`);
 
       const larguraTela = Number.isFinite(Number(data?.larguraTela))
         ? Number(data?.larguraTela)
@@ -168,6 +173,14 @@ export function registrarFase3Handlers(socket) {
         x <= alvo.x_max &&
         y >= alvo.y_min &&
         y <= alvo.y_max;
+
+      console.log(
+        alvo.x_min,
+        alvo.x_max,
+        alvo.y_min,
+        alvo.y_max,
+        `x = ${x} | y = ${y} | Focando: ${estaFocando}`,
+      );
 
       let tipoEvento = "INDETERMINADO";
       if (estaFocando) {
