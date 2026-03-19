@@ -3,7 +3,19 @@ export const EXPERIMENTO_STATUS_EM_EXECUCAO = "EM_EXECUCAO";
 export const MOTIVO_FOCO_COMPLETO = "FOCOU";
 export const MOTIVO_TEMPO_ESGOTADO = "TEMPO";
 
+
 //FASE2
 export const STATUS_RODADA1 = "RODADA1";
 export const STATUS_RODADA2 = "RODADA2";
 export const STATUS_FINALIZADO = "FINALIZADO";
+
+// FASE3
+export const ALVOS_FASE3 = ["ESTRELA", "RADAR"];
+
+export const ALVO = {
+  ESTRELA: "ESTRELA",
+  RADAR: "RADAR",
+};
+
+export const LARGURA_TELA_PADRAO = 1920; 
+export const MOTIVO_TROCA_ALVO = "TROCA";
