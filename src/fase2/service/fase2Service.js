@@ -10,7 +10,7 @@ export const iniciar_fase2 = async (expId) => {
 };
 
 export const salvarExperimentoFase2 = async (usuarioId) => {
-  const experiementoFase2 = DadosExperimentosFase2.create({
+  const experiementoFase2 = await DadosExperimentosFase2.create({
     client_id: usuarioId,
     status: STATUS_RODADA1,
     gabarito: {
@@ -30,6 +30,11 @@ export const salvarExperimentoFase2 = async (usuarioId) => {
 };
 
 export const getPlanetaNumero = (socket, planetaNumero, expId) => {
+  if (!expId) {
+    console.error("Experimento da fase 2 não iniciado para este socket.");
+    return;
+  }
+
   console.debug(
     `Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`,
   );
@@ -38,7 +43,7 @@ export const getPlanetaNumero = (socket, planetaNumero, expId) => {
 
 // função que processa a seleção de um planeta na fase 2 (chamar no IOT)
 const processarSelecaoPlaneta = async (socket, planeta, expId) => {
-  const experimento = getExperimentoFase2Mongo(expId);
+  const experimento = await getExperimentoFase2Mongo(expId);
   if (!experimento) return;
 
   const rodadaKey =
@@ -83,6 +88,13 @@ const processarSelecaoPlaneta = async (socket, planeta, expId) => {
   socket.emit("resposta_planeta", {
     planeta,
     correto,
+  });
+
+  // compatibilidade com front-ends que escutam o evento antigo
+  socket.emit("planeta_recebido", {
+    numero: planeta,
+    correto,
+    rodada: rodadaKey,
   });
 
   const respostasRodadaAtualizada = atualizado.respostas?.[rodadaKey] || [];
