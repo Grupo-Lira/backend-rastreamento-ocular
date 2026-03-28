@@ -1,13 +1,13 @@
 import updateUsuariosDto from "../../dto/request/updateUsuarios.js";
 import {
-  atualizarUsuarioPorId,
-  deletarUsuarioPorId,
-  listarUsuarios,
+  atualizarPorId,
+  deletarPorId,
+  listar,
 } from "../service/usuariosService.js";
 
 const listarUsuariosHandler = async (_req, res) => {
   try {
-    const usuarios = await listarUsuarios();
+    const usuarios = await listar();
     return res.status(200).json({ data: usuarios });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
@@ -17,7 +17,7 @@ const listarUsuariosHandler = async (_req, res) => {
 const atualizarUsuarioPorIdHandler = async (req, res) => {
   try {
     const dadosDto = updateUsuariosDto(req.body);
-    const usuarioAtualizado = await atualizarUsuarioPorId(
+    const usuarioAtualizado = await atualizarPorId(
       req.params.id,
       dadosDto,
     );
@@ -29,7 +29,7 @@ const atualizarUsuarioPorIdHandler = async (req, res) => {
 
 const deletarUsuarioPorIdHandler = async (req, res) => {
   try {
-    await deletarUsuarioPorId(req.params.id);
+    await deletarPorId(req.params.id);
     return res.status(204).send();
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
