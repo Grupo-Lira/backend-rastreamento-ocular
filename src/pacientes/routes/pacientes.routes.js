@@ -16,6 +16,6 @@ pacientesRoutes.post("/", criarPacienteHandler);
 pacientesRoutes.get("/", listarPacientesHandler);
 pacientesRoutes.get("/:nome", buscarPacienteHandler);
 pacientesRoutes.put("/:nome", editarPacienteHandler);
-pacientesRoutes.delete("/:nome", deletarPaciente);
+pacientesRoutes.delete("/:nome", deletarPacienteHandler);
 
 export default pacientesRoutes;
