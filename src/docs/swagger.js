@@ -7,7 +7,6 @@ const options = {
     info: {
       title: "Rastreamento Ocular API",
       version: "1.0.0",
-      description: "Documentacao das rotas principais da API.",
     },
     servers: [
       {
@@ -59,8 +58,41 @@ const options = {
           type: "object",
           properties: {
             email: { type: "string", example: "user@empresa.com" },
-            role: { type: "string", example: "ADMIN" },
-            status: { type: "string", example: "ATIVO" },
+          },
+        },
+        CreatePacienteRequest: {
+          type: "object",
+          required: ["nome"],
+          properties: {
+            nome: { type: "string", example: "Carlos Silva" },
+            data_nascimento: {
+              type: "string",
+              format: "date-time",
+              example: "1998-06-25T00:00:00.000Z",
+            },
+            sexo: { type: "string", example: "M" },
+            escolaridade: { type: "string", example: "Ensino Superior" },
+            observacoes: {
+              type: "string",
+              example: "Paciente com sensibilidade a luz forte.",
+            },
+          },
+        },
+        UpdatePacienteRequest: {
+          type: "object",
+          properties: {
+            nome: { type: "string", example: "Carlos Silva Junior" },
+            data_nascimento: {
+              type: "string",
+              format: "date-time",
+              example: "1998-06-25T00:00:00.000Z",
+            },
+            sexo: { type: "string", example: "M" },
+            escolaridade: { type: "string", example: "Pos-graduacao" },
+            observacoes: {
+              type: "string",
+              example: "Atualizado em consulta recente.",
+            },
           },
         },
       },
@@ -237,6 +269,97 @@ const options = {
           responses: { 204: { description: "Usuario removido" } },
         },
       },
+      "/api/pacientes": {
+        post: {
+          tags: ["Pacientes"],
+          summary: "Criar paciente para o doutor logado",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CreatePacienteRequest" },
+              },
+            },
+          },
+          responses: {
+            201: { description: "Paciente criado" },
+            400: { description: "Dados inválidos" },
+            409: { description: "Paciente com mesmo nome ja existe" },
+          },
+        },
+        get: {
+          tags: ["Pacientes"],
+          summary: "Listar meus pacientes",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: "Lista de pacientes do doutor logado" },
+          },
+        },
+      },
+      "/api/pacientes/{nome}": {
+        get: {
+          tags: ["Pacientes"],
+          summary: "Buscar paciente por nome",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "nome",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            200: { description: "Paciente encontrado" },
+            404: { description: "Paciente nao encontrado" },
+          },
+        },
+        put: {
+          tags: ["Pacientes"],
+          summary: "Editar paciente por nome",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "nome",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UpdatePacienteRequest" },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Paciente atualizado" },
+            400: { description: "Nenhum campo valido informado" },
+            404: { description: "Paciente nao encontrado" },
+            409: { description: "Ja existe outro paciente com este nome" },
+          },
+        },
+        delete: {
+          tags: ["Pacientes"],
+          summary: "Deletar paciente por nome",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "nome",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            204: { description: "Paciente removido" },
+            404: { description: "Paciente nao encontrado" },
+          },
+        },
+      },
     },
   },
   apis: [],
@@ -244,14 +367,8 @@ const options = {
 
 const swaggerSpec = swaggerJSDoc(options);
 
-
 const setupSwagger = (app) => {
-  app.use(
-    "/api/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec, {
-    }),
-  );
+  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {}));
   app.get("/api/docs.json", (_req, res) => {
     res.status(200).json(swaggerSpec);
   });
