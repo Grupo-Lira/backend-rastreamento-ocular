@@ -1,4 +1,4 @@
-const CAMPOS_ATUALIZAVEIS = ["email", "role"];
+const CAMPOS_ATUALIZAVEIS = ["email"];
 
 const updateUsuariosDto = (dadosEntrada = {}) => {
   const body =
