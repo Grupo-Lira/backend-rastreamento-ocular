@@ -1,5 +1,9 @@
 import updateUsuariosDto from "../../dto/request/updateUsuarios.js";
 import {
+  getUsuarioResponseDto,
+  getUsuariosResponseDto,
+} from "../../dto/response/getUsuarios.js";
+import {
   atualizarPorId,
   deletarPorId,
   listar,
@@ -8,7 +12,7 @@ import {
 const listarUsuariosHandler = async (_req, res) => {
   try {
     const usuarios = await listar();
-    return res.status(200).json({ data: usuarios });
+    return res.status(200).json({ data: getUsuariosResponseDto(usuarios) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
@@ -21,7 +25,7 @@ const atualizarUsuarioPorIdHandler = async (req, res) => {
       req.params.id,
       dadosDto,
     );
-    return res.status(200).json({ data: usuarioAtualizado });
+    return res.status(200).json({ data: getUsuarioResponseDto(usuarioAtualizado) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
