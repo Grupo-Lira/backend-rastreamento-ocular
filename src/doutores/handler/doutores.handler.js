@@ -5,18 +5,28 @@ import {
   getDoutoresResponseDto,
 } from "../../dto/response/getDoutores.js";
 import {
-  atualizarMeuPerfilPorUsuarioId,
-  buscarDoutorPorId,
-  buscarDoutorPorUsuarioId,
-  criarDoutorParaMenu,
-  deletarDoutorPorId,
-  listarDoutores,
+  buscarMeuPerfil,
+  buscarPorId,
+  criar,
+  deletar,
+  editarMeuPerfil,
+  listar,
 } from "../service/doutoresService.js";
 
 const listarDoutoresHandler = async (_req, res) => {
   try {
-    const doutores = await listarDoutores();
+    const doutores = await listar();
     return res.status(200).json({ data: getDoutoresResponseDto(doutores) });
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.message });
+  }
+};
+
+const criarDoutorHandler = async (req, res) => {
+  try {
+    const dadosDto = createDoutorProfileDto(req.body);
+    const doutor = await criar(req.user.id, dadosDto);
+    return res.status(201).json({ data: getDoutorResponseDto(doutor) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
@@ -24,29 +34,28 @@ const listarDoutoresHandler = async (_req, res) => {
 
 const buscarMeuPerfilHandler = async (req, res) => {
   try {
-    const doutor = await buscarDoutorPorUsuarioId(req.user.id);
+    const doutor = await buscarMeuPerfil(req.user.id);
     return res.status(200).json({ data: getDoutorResponseDto(doutor) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const buscarDoutorPorIdHandler = async (req, res) => {
+const buscarDoutorHandler = async (req, res) => {
   try {
-    const doutor = await buscarDoutorPorId(req.params.id);
+    const doutor = await buscarPorId(req.params.id);
     return res.status(200).json({ data: getDoutorResponseDto(doutor) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const atualizarMeuPerfilHandler = async (req, res) => {
+const editarMeuPerfilHandler = async (req, res) => {
   try {
     const dadosDto = updateDoutoresDto(req.body);
-    const doutorAtualizado = await atualizarMeuPerfilPorUsuarioId(
+    const doutorAtualizado = await editarMeuPerfil(
       req.user.id,
       dadosDto,
-      req.user,
     );
     return res
       .status(200)
@@ -56,31 +65,22 @@ const atualizarMeuPerfilHandler = async (req, res) => {
   }
 };
 
-const deletarDoutorPorIdHandler = async (req, res) => {
+const deletarDoutorHandler = async (req, res) => {
   try {
-    await deletarDoutorPorId(req.params.id);
+    await deletar(req.params.id);
     return res.status(204).send();
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const criarMeuDoutorHandler = async (req, res) => {
-  try {
-    const dadosDto = createDoutorProfileDto(req.body);
-    const doutor = await criarDoutorParaMenu(req.user.id, dadosDto);
-    return res.status(201).json({ data: getDoutorResponseDto(doutor) });
-  } catch (err) {
-    return res.status(err.status || 500).json({ error: err.message });
-  }
-};
+
 
 export {
-  atualizarMeuPerfilHandler,
-  buscarDoutorPorIdHandler,
+  buscarDoutorHandler,
   buscarMeuPerfilHandler,
-  criarMeuDoutorHandler,
-  deletarDoutorPorIdHandler,
+  criarDoutorHandler,
+  deletarDoutorHandler,
+  editarMeuPerfilHandler,
   listarDoutoresHandler,
 };
-
