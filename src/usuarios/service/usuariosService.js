@@ -2,8 +2,6 @@ import mongoose from "mongoose";
 import Doutores from "../../models/Doutores.js";
 import Usuarios from "../../models/Usuarios.js";
 
-const CAMPOS_USUARIO_ATUALIZAVEIS = ["email"];
-
 const validarObjectId = (id) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     const err = new Error("ID invalido.");
@@ -14,25 +12,26 @@ const validarObjectId = (id) => {
 
 const normalizarEmail = (email) => String(email).toLowerCase().trim();
 
-const listarUsuarios = async () => {
+const listar = async () => {
   return Usuarios.find().sort({ criado_em: -1 }).lean();
 };
 
-const atualizarUsuarioPorId = async (id, dadosAtualizacao = {}) => {
+const atualizarPorId = async (id, dadosAtualizacao = {}) => {
   validarObjectId(id);
 
-  const campos = Object.fromEntries(
-    Object.entries(dadosAtualizacao).filter(([chave]) =>
-      CAMPOS_USUARIO_ATUALIZAVEIS.includes(chave),
-    ),
-  );
+  const campos =
+    dadosAtualizacao &&
+    typeof dadosAtualizacao === "object" &&
+    !Array.isArray(dadosAtualizacao)
+      ? { ...dadosAtualizacao }
+      : {};
 
   if (typeof campos.email === "string") {
     campos.email = normalizarEmail(campos.email);
 
     const existente = await Usuarios.findOne({ email: campos.email }).lean();
     if (existente && existente._id.toString() !== id) {
-      const err = new Error("Ja existe usuario com este email.");
+      const err = new Error("Já existe usuário com este email.");
       err.status = 409;
       throw err;
     }
@@ -40,7 +39,7 @@ const atualizarUsuarioPorId = async (id, dadosAtualizacao = {}) => {
 
   if (Object.keys(campos).length === 0) {
     const err = new Error(
-      "Nenhum campo valido para atualizacao foi informado.",
+      "Nenhum campo válido para atualização foi informado.",
     );
     err.status = 400;
     throw err;
@@ -52,7 +51,7 @@ const atualizarUsuarioPorId = async (id, dadosAtualizacao = {}) => {
   }).lean();
 
   if (!usuarioAtualizado) {
-    const err = new Error("Usuario nao encontrado.");
+    const err = new Error("Usuário não encontrado.");
     err.status = 404;
     throw err;
   }
@@ -60,12 +59,12 @@ const atualizarUsuarioPorId = async (id, dadosAtualizacao = {}) => {
   return usuarioAtualizado;
 };
 
-const deletarUsuarioPorId = async (id) => {
+const deletarPorId = async (id) => {
   validarObjectId(id);
 
   const removido = await Usuarios.findByIdAndDelete(id).lean();
   if (!removido) {
-    const err = new Error("Usuario nao encontrado.");
+    const err = new Error("Usuário não encontrado.");
     err.status = 404;
     throw err;
   }
@@ -74,5 +73,6 @@ const deletarUsuarioPorId = async (id) => {
   return removido;
 };
 
-export { atualizarUsuarioPorId, deletarUsuarioPorId, listarUsuarios };
+export { atualizarPorId, deletarPorId, listar };
+
 
