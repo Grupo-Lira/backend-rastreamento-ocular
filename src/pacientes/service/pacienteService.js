@@ -110,19 +110,10 @@ const editar = async (usuarioId, nome, dados = {}) => {
     throw err;
   }
 
-  const permitidos = [
-    "nome",
-    "data_nascimento",
-    "sexo",
-    "escolaridade",
-    "observacoes",
-  ];
-
-  const atualizacao = Object.fromEntries(
-    Object.entries(dados).filter(([chave, valor]) => {
-      return permitidos.includes(chave) && valor !== undefined;
-    }),
-  );
+  const atualizacao =
+    dados && typeof dados === "object" && !Array.isArray(dados)
+      ? { ...dados }
+      : {};
 
   if (Object.keys(atualizacao).length === 0) {
     const err = new Error(
