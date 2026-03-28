@@ -37,10 +37,10 @@ const gerarToken = (usuario) =>
     { expiresIn: process.env.JWT_EXPIRACAO },
   );
 
-const registrarDoutor = async ({ email, senha }) => {
+const registrarUser = async ({ email, senha }) => {
   if (!email || !senha) {
     const err = new Error(
-      "Campos obrigatorios: email e senha.",
+      "Campos obrigatórios: email e senha.",
     );
     err.status = 400;
     throw err;
@@ -49,7 +49,7 @@ const registrarDoutor = async ({ email, senha }) => {
   const emailNormalizado = String(email).toLowerCase().trim();
   const existente = await Usuarios.findOne({ email: emailNormalizado }).lean();
   if (existente) {
-    const err = new Error("Ja existe usuario cadastrado com este email.");
+    const err = new Error("Já existe usuário cadastrado com este email.");
     err.status = 409;
     throw err;
   }
@@ -66,7 +66,7 @@ const registrarDoutor = async ({ email, senha }) => {
   return { token, usuario: usuario.toJSON() };
 };
 
-const loginDoutor = async ({ email, senha }) => {
+const login = async ({ email, senha }) => {
   if (!email || !senha) {
     const err = new Error("Email e senha são obrigatórios.");
     err.status = 400;
@@ -75,7 +75,7 @@ const loginDoutor = async ({ email, senha }) => {
 
   const emailNormalizado = String(email).toLowerCase().trim();
   const usuario = await Usuarios.findOne({ email: emailNormalizado }).select(
-    "+senha",
+    "+senha", 
   );
 
   if (!usuario) {
@@ -91,11 +91,8 @@ const loginDoutor = async ({ email, senha }) => {
     throw err;
   }
 
-  await Usuarios.findByIdAndUpdate(usuario._id, { ultimo_login_em: new Date() });
-
   const token = gerarToken(usuario);
   return { token, usuario: usuario.toJSON() };
 };
 
-export { loginDoutor, registrarDoutor };
-
+export { login, registrarUser };
