@@ -1,3 +1,8 @@
+## Swagger
+
+- UI: http://localhost:4000/api/docs
+- JSON: http://localhost:4000/api/docs.json
+
 
 # Teste de Desempenho Contínuo, Orientado po Visão Computacional
 

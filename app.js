@@ -13,6 +13,7 @@ async function initialize() {
     const PORT = process.env.SERVER_PORT || "4000";
     httpServer.listen(PORT, () => {
       console.info("Server Iniciado com sucesso!");
+      console.info("Documentação disponível em: http://localhost:" + PORT + "/api/docs");
     });
   } catch (err) {
     console.error("Erro ao iniciar aplicação:", err);
