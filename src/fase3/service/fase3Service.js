@@ -48,10 +48,8 @@ const calcularMediaDesvio = (valores) => {
   };
 };
 
-// A função analisarAlvoFase3 processa os eventos de olhar e resultados de um alvo específico para determinar as métricas de foco, desvio, tempo de reação e resultado final (acerto, comissão ou omissão)
 // resultado: objeto com informações do resultado do alvo (incluindo motivo de término e timestamps)
 // historico: array de eventos de olhar registrados durante o experimento
-// alvoIndice: índice do alvo sendo analisado
 const analisarAlvoFase3 = (resultado, historico) => {
   // início e fim do alvo
   const inicioMs = toTimestamp(resultado?.tempo_inicio_alvo);
@@ -135,18 +133,27 @@ const analisarAlvoFase3 = (resultado, historico) => {
   // calcula a duração total do alvo para analisar acertos e erros
   const duracaoTotalAlvoMs = Math.max(0, fimMs - inicioMs);
 
-  // Temporario para teste: classificacao baseada apenas em foco/latencia.
+  // calcula omissão ou comissão
   const tempoOmissaoMaxMs = DWELL_REQUIRED_MS;
   const focoNaoIniciado =
     tempoReacaoMs === null || tempoReacaoMs > tempoOmissaoMaxMs;
-  const latenciaRetornoExcedida = desvioMaximoMs > tempoOmissaoMaxMs;
+  const latenciaRetornoExcedida = desvioMaximoMs > tempoOmissaoMaxMs; // ela viu, mas demorou muito para voltar o foco para o alvo
   const concluiuFocoMinimo = focoMaximoMs >= DWELL_REQUIRED_MS;
-  const houveQuebraFoco = eventosDoAlvo.length > 2;
+  const houveQuebraFoco = eventosDoAlvo.length > 2; // mais de 2 eventos (foco-desvio-foco) indica que houve uma quebra de foco durante o alvo
+
+  
+  const quantidadeComissaoEventos = eventosDoAlvo.filter(
+    (evento) => evento?.tipo === "DESVIO_COMISSAO",
+  ).length;
+  const quantidadeOmissaoEventos = eventosDoAlvo.filter(
+    (evento) => evento?.tipo === "DESVIO_OMISSAO",
+  ).length;
 
   let resultadoFinal = RESULTADO_ACERTO;
-  if (focoNaoIniciado || latenciaRetornoExcedida) {
+  if (focoNaoIniciado) {
     resultadoFinal = RESULTADO_OMISSAO;
   } else if (
+    latenciaRetornoExcedida ||
     houveQuebraFoco ||
     !concluiuFocoMinimo ||
     resultado?.motivo_termino === MOTIVO_TROCA_ALVO
@@ -160,8 +167,8 @@ const analisarAlvoFase3 = (resultado, historico) => {
     motivo_servidor: resultado?.motivo_termino,
     resultado: resultadoFinal,
     quantidade_acerto: resultadoFinal === RESULTADO_ACERTO ? 1 : 0,
-    quantidade_comissao: resultadoFinal === RESULTADO_COMISSAO ? 1 : 0,
-    quantidade_omissao: resultadoFinal === RESULTADO_OMISSAO ? 1 : 0,
+    quantidade_comissao: quantidadeComissaoEventos,
+    quantidade_omissao: quantidadeOmissaoEventos,
     tempo_reacao_ms: tempoReacaoMs,
     foco_maximo_ms: focoMaximoMs,
     desvio_maximo_ms: desvioMaximoMs,
@@ -197,7 +204,7 @@ const gerarEstatisticasFase3 = async (expId) => {
   const resumoMetricas = {
     tempo_reacao_medio_ms: trMedio,
     tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
-    // Totais por alvo (temporario, sem contagem por evento de desvio)
+    // acertos por alvo + ocorrencias de eventos de comissao/omissao
     total_acertos: analisePorAlvo.reduce(
       (acc, item) => acc + item.quantidade_acerto,
       0,
