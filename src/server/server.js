@@ -7,9 +7,19 @@ import doutoresRoutes from "../doutores/routes/doutores.routes.js";
 import pacientesRoutes from "../pacientes/routes/pacientes.routes.js";
 import usuariosRoutes from "../usuarios/routes/usuarios.routes.js";
 
+const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGINS || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim());
+
 const app = express();
 const httpServer = createServer(app);
 
+app.use(
+  cors({
+    origin: FRONTEND_ORIGINS,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 setupSwagger(app);
