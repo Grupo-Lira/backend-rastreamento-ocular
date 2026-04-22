@@ -6,6 +6,7 @@ import { setupSwagger } from "../docs/swagger.js";
 import doutoresRoutes from "../doutores/routes/doutores.routes.js";
 import pacientesRoutes from "../pacientes/routes/pacientes.routes.js";
 import usuariosRoutes from "../usuarios/routes/usuarios.routes.js";
+import cors from "cors";
 
 const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGINS || "http://localhost:3000")
   .split(",")
