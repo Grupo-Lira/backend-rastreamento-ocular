@@ -1,21 +1,21 @@
 import { Router } from "express";
 import authMiddleware from "../../auth/middleware/auth.middleware.js";
 import {
-  buscarPacienteHandler,
-  criarPacienteHandler,
-  deletarPacienteHandler,
-  editarPacienteHandler,
-  listarPacientesHandler,
+  getPacienteHandler,
+  createPacienteHandler,
+  deletePacienteHandler,
+  updatePacienteHandler,
+  getAllPacientesHandler,
 } from "../handler/pacientes.handler.js";
 
 const pacientesRoutes = Router();
 
 pacientesRoutes.use(authMiddleware);
 
-pacientesRoutes.post("/", criarPacienteHandler);
-pacientesRoutes.get("/", listarPacientesHandler);
-pacientesRoutes.get("/:nome", buscarPacienteHandler);
-pacientesRoutes.put("/:nome", editarPacienteHandler);
-pacientesRoutes.delete("/:nome", deletarPacienteHandler);
+pacientesRoutes.post("/", createPacienteHandler);
+pacientesRoutes.get("/", getAllPacientesHandler);
+pacientesRoutes.get("/:id", getPacienteHandler);
+pacientesRoutes.put("/:id", updatePacienteHandler);
+pacientesRoutes.delete("/:id", deletePacienteHandler);
 
 export default pacientesRoutes;

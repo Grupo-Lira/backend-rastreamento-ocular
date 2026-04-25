@@ -4,18 +4,14 @@ const getUsuarioResponseDto = (usuario) => {
   }
 
   return {
+    nome: usuario.nome,
+    telefone: usuario.telefone,
+    especialidade: usuario.especialidade,
     email: usuario.email,
-    role: usuario.role,
-    criadoEm: usuario.criado_em,
+    pacientesIds: Array.isArray(usuario.pacientes_ids)
+      ? usuario.pacientes_ids.map((id) => id?.toString()).filter(Boolean)
+      : [],
   };
 };
 
-const getUsuariosResponseDto = (usuarios = []) => {
-  if (!Array.isArray(usuarios)) {
-    return [];
-  }
-
-  return usuarios.map(getUsuarioResponseDto);
-};
-
-export { getUsuarioResponseDto, getUsuariosResponseDto };
+export { getUsuarioResponseDto };

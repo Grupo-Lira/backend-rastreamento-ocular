@@ -1,27 +1,14 @@
-const CAMPOS_ATUALIZAVEIS = [
-  "nome",
-  "data_nascimento",
-  "sexo",
-  "escolaridade",
-  "observacoes",
-];
-
 const updatePacientesDto = (dadosEntrada = {}) => {
-  const body =
-    dadosEntrada &&
-    typeof dadosEntrada === "object" &&
-    !Array.isArray(dadosEntrada)
-      ? dadosEntrada
-      : {};
+  if (Array.isArray(dadosEntrada)) {
+    return {};
+  }
 
   const dto = {};
 
-  for (const campo of CAMPOS_ATUALIZAVEIS) {
-    if (!(campo in body) || body[campo] === undefined) {
-      continue;
+  for (const campo of ["nome", "rg", "data_nascimento", "data_avaliacao", "sexo", "escolaridade", "observacoes"]) {
+    if (dadosEntrada[campo] !== undefined) {
+      dto[campo] = dadosEntrada[campo];
     }
-
-    dto[campo] = body[campo];
   }
 
   return dto;

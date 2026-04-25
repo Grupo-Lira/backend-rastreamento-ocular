@@ -5,54 +5,54 @@ import {
   getPacientesResponseDto,
 } from "../../dto/response/getPacientes.js";
 import {
-  buscarPorNome,
-  criar,
-  deletar,
-  editar,
-  listar,
+  getById,
+  create,
+  deleteById,
+  updateById,
+  getall,
 } from "../service/pacienteService.js";
 
-const criarPacienteHandler = async (req, res) => {
+const createPacienteHandler = async (req, res) => {
   try {
     const dadosDto = createPacienteDto(req.body);
-    const paciente = await criar(req.user.id, dadosDto);
-    return res.status(201).json({ data: getPacienteResponseDto(paciente) });
+    await create(req.user.id, dadosDto);
+    return res.status(201).send();
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const listarPacientesHandler = async (req, res) => {
+const getAllPacientesHandler = async (req, res) => {
   try {
-    const pacientes = await listar(req.user.id);
+    const pacientes = await getall(req.user.id);
     return res.status(200).json({ data: getPacientesResponseDto(pacientes) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const buscarPacienteHandler = async (req, res) => {
+const getPacienteHandler = async (req, res) => {
   try {
-    const paciente = await buscarPorNome(req.user.id, req.params.nome);
+    const paciente = await getById(req.user.id, req.params.id);
     return res.status(200).json({ data: getPacienteResponseDto(paciente) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const editarPacienteHandler = async (req, res) => {
+const updatePacienteHandler = async (req, res) => {
   try {
     const dadosDto = updatePacientesDto(req.body);
-    const paciente = await editar(req.user.id, req.params.nome, dadosDto);
+    const paciente = await updateById(req.user.id, req.params.id, dadosDto);
     return res.status(200).json({ data: getPacienteResponseDto(paciente) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
 };
 
-const deletarPacienteHandler = async (req, res) => {
+const deletePacienteHandler = async (req, res) => {
   try {
-    await deletar(req.user.id, req.params.nome);
+    const paciente = await deleteById(req.user.id, req.params.id);
     return res.status(204).send();
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
@@ -60,10 +60,10 @@ const deletarPacienteHandler = async (req, res) => {
 };
 
 export {
-  buscarPacienteHandler,
-  criarPacienteHandler,
-  deletarPacienteHandler,
-  editarPacienteHandler,
-  listarPacientesHandler
+  getPacienteHandler,
+  createPacienteHandler,
+  deletePacienteHandler,
+  updatePacienteHandler,
+  getAllPacientesHandler
 };
 

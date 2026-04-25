@@ -1,20 +1,17 @@
 import { Router } from "express";
-import authMiddleware, {
-  requireAdmin,
-} from "../../auth/middleware/auth.middleware.js";
+import authMiddleware from "../../auth/middleware/auth.middleware.js";
 import {
-  atualizarUsuarioPorIdHandler,
-  deletarUsuarioPorIdHandler,
-  listarUsuariosHandler,
+  getProfileHandler,
+  updateProfileHandler,
+  deleteProfileHandler,
 } from "../handler/usuarios.handler.js";
 
 const usuariosRoutes = Router();
 
 usuariosRoutes.use(authMiddleware);
-usuariosRoutes.use(requireAdmin);
 
-usuariosRoutes.get("/", listarUsuariosHandler);
-usuariosRoutes.put("/:id", atualizarUsuarioPorIdHandler);
-usuariosRoutes.delete("/:id", deletarUsuarioPorIdHandler);
+usuariosRoutes.get("/", getProfileHandler);
+usuariosRoutes.put("/", updateProfileHandler);
+usuariosRoutes.delete("/", deleteProfileHandler);
 
 export default usuariosRoutes;
