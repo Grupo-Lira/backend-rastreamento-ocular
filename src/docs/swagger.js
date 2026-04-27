@@ -12,10 +12,12 @@ const EXEMPLO_USUARIO = {
 const EXEMPLO_PACIENTE = {
   nome: "Carlos Silva",
   rg: "123456789",
-  data_nascimento: "1998-06-25T00:00:00.000Z",
-  data_avaliacao: "2026-04-23T10:00:00.000Z",
+  motivo_avaliacao:
+    "Monitoramento do desempenho cognitivo pós-treinamento e verificação de fadiga atencional.",
+  data_nascimento: "27/04/2016",
+  data_avaliacao: "23/04/2026",
   sexo: "M",
-  escolaridade: "Ensino Superior",
+  escolaridade: "Ensino fundamental",
   observacoes: "Paciente com sensibilidade a luz forte.",
 };
 
@@ -106,24 +108,24 @@ const options = {
           properties: {
             nome: { type: "string", example: EXEMPLO_PACIENTE.nome },
             rg: { type: "string", example: EXEMPLO_PACIENTE.rg },
+            motivo_avaliacao: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.motivo_avaliacao,
+            },
             data_nascimento: {
               type: "string",
-              format: "date-time",
-              example: EXEMPLO_PACIENTE.data_nascimento,
+              description: "Data de nascimento (ISO 8601 ou dd/mm/yyyy)",
+              example: "27/04/2016",
             },
             data_avaliacao: {
               type: "string",
-              format: "date-time",
-              example: EXEMPLO_PACIENTE.data_avaliacao,
+              description: "Data de avaliação (ISO 8601 ou dd/mm/yyyy)",
+              example: "23/04/2026",
             },
             sexo: { type: "string", example: EXEMPLO_PACIENTE.sexo },
             escolaridade: {
               type: "string",
               example: EXEMPLO_PACIENTE.escolaridade,
-            },
-            observacoes: {
-              type: "string",
-              example: EXEMPLO_PACIENTE.observacoes,
             },
           },
         },
@@ -132,15 +134,19 @@ const options = {
           properties: {
             nome: { type: "string", example: EXEMPLO_PACIENTE.nome },
             rg: { type: "string", example: EXEMPLO_PACIENTE.rg },
+            motivo_avaliacao: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.motivo_avaliacao,
+            },
             data_nascimento: {
               type: "string",
-              format: "date-time",
-              example: EXEMPLO_PACIENTE.data_nascimento,
+              description: "Data de nascimento (ISO 8601 ou dd/mm/yyyy)",
+              example: "27/04/2016",
             },
             data_avaliacao: {
               type: "string",
-              format: "date-time",
-              example: EXEMPLO_PACIENTE.data_avaliacao,
+              description: "Data de avaliação (ISO 8601 ou dd/mm/yyyy)",
+              example: "23/04/2026",
             },
             sexo: { type: "string", example: EXEMPLO_PACIENTE.sexo },
             escolaridade: {
@@ -149,8 +155,54 @@ const options = {
             },
             observacoes: {
               type: "string",
+              description:
+                "Observações do doutor (adicionadas após a conclusão das 3 fases)",
               example: EXEMPLO_PACIENTE.observacoes,
             },
+          },
+        },
+        RelatorioPacienteData: {
+          type: "object",
+          properties: {
+            nomePaciente: { type: "string", example: EXEMPLO_PACIENTE.nome },
+            dataAvaliacaoPaciente: { type: "string", example: "23/04/2026" },
+            sexo: { type: "string", example: EXEMPLO_PACIENTE.sexo },
+            escolaridade: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.escolaridade,
+            },
+            motivoAvaliacao: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.motivo_avaliacao,
+            },
+            dataNascimento: { type: "string", example: "27/04/2016" },
+            tempoReacao: { type: "string", example: "0:15" },
+            variabilidadeTemporalRespostas: {
+              type: "string",
+              example: "13.49%",
+            },
+            acertos: { type: "number", example: 9 },
+            errosOmissao: { type: "number", example: 2 },
+            errosComissao: { type: "number", example: 1 },
+            observacoes: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.observacoes,
+            },
+            dadosComparativos: {
+              type: "array",
+              items: { $ref: "#/components/schemas/DadoComparativo" },
+              example: [
+                { idade: 10, mediaAcertos: 8.0 },
+                { idade: 11, mediaAcertos: 7.5 },
+                { idade: 12, mediaAcertos: 9.2 }
+              ]
+            }
+          },
+        },
+        RelatorioPacienteDataResponse: {
+          type: "object",
+          properties: {
+            data: { $ref: "#/components/schemas/RelatorioPacienteData" },
           },
         },
       },
@@ -264,7 +316,9 @@ const options = {
       "/api/pacientes": {
         post: {
           tags: ["Pacientes"],
-          summary: "Criar paciente para o usuario logado",
+          summary: "Criar paciente ",
+          description:
+            "Cria um novo paciente. Observações devem ser adicionadas após a conclusão das 3 fases via PUT.",
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -309,7 +363,9 @@ const options = {
         },
         put: {
           tags: ["Pacientes"],
-          summary: "Editar paciente por ID",
+          summary: "Editar paciente",
+          description:
+            "Atualiza dados do paciente. ⚠️ Observações só podem ser adicionadas após a conclusão das 3 fases. Retorna 403 se tentar adicionar observações antes disso.",
           security: [{ bearerAuth: [] }],
           parameters: [
             {
@@ -330,6 +386,10 @@ const options = {
           responses: {
             200: { description: "Paciente atualizado" },
             400: { description: "Nenhum campo valido informado" },
+            403: {
+              description:
+                "Observações só podem ser adicionadas após conclusão das 3 fases",
+            },
             404: { description: "Paciente nao encontrado" },
             409: { description: "Ja existe outro paciente com este RG" },
           },
@@ -349,6 +409,38 @@ const options = {
           responses: {
             204: { description: "Paciente removido" },
             404: { description: "Paciente nao encontrado" },
+          },
+        },
+      },
+      "/api/relatorios/{id}/": {
+        get: {
+          tags: ["Relatorios"],
+          summary: "Obter dados do relatorio de um paciente",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+              description: "ID do paciente",
+            },
+          ],
+          responses: {
+            200: {
+              description: "Dados do relatorio retornados com sucesso",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/RelatorioPacienteDataResponse",
+                  },
+                },
+              },
+            },
+            400: { description: "ID invalido" },
+            401: { description: "Nao autenticado" },
+            404: { description: "Paciente nao encontrado" },
+            500: { description: "Erro interno" },
           },
         },
       },
