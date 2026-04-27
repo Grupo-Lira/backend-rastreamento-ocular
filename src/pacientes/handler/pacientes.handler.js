@@ -11,10 +11,36 @@ import {
   updateById,
   getall,
 } from "../service/pacienteService.js";
+import ExperimentosFase1 from "../../models/ExperimentosFase1.js";
+import ExperimentosFase2 from "../../models/ExperimentosFase2.js";
+import ExperimentosFase3 from "../../models/ExperimentosFase3.js";
+
+const verificarFasesCompletas = async (pacienteId) => {
+  try {
+    const [temFase1, temFase2, temFase3] = await Promise.all([
+      ExperimentosFase1.findOne({ usuario_id: pacienteId }).lean(),
+      ExperimentosFase2.findOne({ usuario_id: pacienteId }).lean(),
+      ExperimentosFase3.findOne({ usuario_id: pacienteId }).lean(),
+    ]);
+
+    return !!(temFase1 && temFase2 && temFase3);
+  } catch {
+    return false;
+  }
+};
 
 const createPacienteHandler = async (req, res) => {
   try {
+    if (req.body?.observacoes !== undefined) {
+      const err = new Error(
+        "Observações não podem ser enviadas na criação do paciente. Adicione após a conclusão das 3 fases.",
+      );
+      err.status = 400;
+      throw err;
+    }
+
     const dadosDto = createPacienteDto(req.body);
+
     await create(req.user.id, dadosDto);
     return res.status(201).send();
   } catch (err) {
@@ -43,6 +69,16 @@ const getPacienteHandler = async (req, res) => {
 const updatePacienteHandler = async (req, res) => {
   try {
     const dadosDto = updatePacientesDto(req.body);
+
+    if (dadosDto.observacoes !== undefined) {
+      const fasesCompletas = await verificarFasesCompletas(req.params.id);
+      if (!fasesCompletas) {
+        const err = new Error("Observações só podem ser adicionadas após a conclusão das 3 fases.");
+        err.status = 403;
+        throw err;
+      }
+    }
+
     const paciente = await updateById(req.user.id, req.params.id, dadosDto);
     return res.status(200).json({ data: getPacienteResponseDto(paciente) });
   } catch (err) {

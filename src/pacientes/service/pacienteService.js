@@ -49,11 +49,11 @@ const create = async (usuarioId, dados = {}) => {
     doutor_id: usuarioId,
     nome: dados.nome,
     rg: dados.rg,
+    motivo_avaliacao: dados.motivo_avaliacao,
     data_nascimento: dados.data_nascimento,
     data_avaliacao: dados.data_avaliacao,
     sexo: dados.sexo,
     escolaridade: dados.escolaridade,
-    observacoes: dados.observacoes,
   });
 
   await Usuarios.findByIdAndUpdate(usuarioId, {
