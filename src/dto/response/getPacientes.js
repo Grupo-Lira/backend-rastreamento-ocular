@@ -6,6 +6,7 @@ const getPacienteResponseDto = (paciente) => {
   return {
     nome: paciente.nome,
     rg: paciente.rg,
+    motivoAvaliacao: paciente.motivo_avaliacao,
     dataNascimento: paciente.data_nascimento,
     dataAvaliacao: paciente.data_avaliacao,
     sexo: paciente.sexo,

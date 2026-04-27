@@ -5,7 +5,7 @@ const updatePacientesDto = (dadosEntrada = {}) => {
 
   const dto = {};
 
-  for (const campo of ["nome", "rg", "data_nascimento", "data_avaliacao", "sexo", "escolaridade", "observacoes"]) {
+  for (const campo of ["nome", "rg", "motivo_avaliacao", "data_nascimento", "data_avaliacao", "sexo", "escolaridade", "observacoes"]) {
     if (dadosEntrada[campo] !== undefined) {
       dto[campo] = dadosEntrada[campo];
     }
