@@ -223,6 +223,7 @@ const gerarEstatisticasFase3 = async (expId) => {
     usuario_id: experimento.client_id,
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
+    variabilidade_temporal_respostas_ms: trDesvioPadrao,
     resumo_metricas: resumoMetricas,
     timestamp_analise: new Date(),
   };
