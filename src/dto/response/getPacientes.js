@@ -4,6 +4,7 @@ const getPacienteResponseDto = (paciente) => {
   }
 
   return {
+    id: paciente._id,
     nome: paciente.nome,
     rg: paciente.rg,
     motivoAvaliacao: paciente.motivo_avaliacao,

@@ -12,10 +12,10 @@ const EXEMPLO_USUARIO = {
 const EXEMPLO_PACIENTE = {
   nome: "Carlos Silva",
   rg: "123456789",
-  motivo_avaliacao:
+  motivoAvaliacao:
     "Monitoramento do desempenho cognitivo pós-treinamento e verificação de fadiga atencional.",
-  data_nascimento: "27/04/2016",
-  data_avaliacao: "23/04/2026",
+  dataNascimento: "27/04/2016",
+  dataAvaliacao: "23/04/2026",
   sexo: "M",
   escolaridade: "Ensino fundamental",
   observacoes: "Paciente com sensibilidade a luz forte.",
@@ -108,16 +108,16 @@ const options = {
           properties: {
             nome: { type: "string", example: EXEMPLO_PACIENTE.nome },
             rg: { type: "string", example: EXEMPLO_PACIENTE.rg },
-            motivo_avaliacao: {
+            motivoAvaliacao: {
               type: "string",
-              example: EXEMPLO_PACIENTE.motivo_avaliacao,
+              example: EXEMPLO_PACIENTE.motivoAvaliacao,
             },
-            data_nascimento: {
+            dataNascimento: {
               type: "string",
               description: "Data de nascimento (ISO 8601 ou dd/mm/yyyy)",
               example: "27/04/2016",
             },
-            data_avaliacao: {
+            dataAvaliacao: {
               type: "string",
               description: "Data de avaliação (ISO 8601 ou dd/mm/yyyy)",
               example: "23/04/2026",
@@ -134,16 +134,16 @@ const options = {
           properties: {
             nome: { type: "string", example: EXEMPLO_PACIENTE.nome },
             rg: { type: "string", example: EXEMPLO_PACIENTE.rg },
-            motivo_avaliacao: {
+            motivoAvaliacao: {
               type: "string",
-              example: EXEMPLO_PACIENTE.motivo_avaliacao,
+              example: EXEMPLO_PACIENTE.motivoAvaliacao,
             },
-            data_nascimento: {
+            dataNascimento: {
               type: "string",
               description: "Data de nascimento (ISO 8601 ou dd/mm/yyyy)",
               example: "27/04/2016",
             },
-            data_avaliacao: {
+            dataAvaliacao: {
               type: "string",
               description: "Data de avaliação (ISO 8601 ou dd/mm/yyyy)",
               example: "23/04/2026",
@@ -173,7 +173,7 @@ const options = {
             },
             motivoAvaliacao: {
               type: "string",
-              example: EXEMPLO_PACIENTE.motivo_avaliacao,
+              example: EXEMPLO_PACIENTE.motivoAvaliacao,
             },
             dataNascimento: { type: "string", example: "27/04/2016" },
             tempoReacao: { type: "string", example: "0:15" },
@@ -459,4 +459,3 @@ const setupSwagger = (app) => {
 };
 
 export { setupSwagger };
-

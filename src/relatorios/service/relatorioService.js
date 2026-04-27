@@ -172,6 +172,7 @@ async buscarMediasPorIdade() {
     const idadePacienteAtual = anoAtual - anoNascimento;
 
     return {
+      idPaciente: paciente._id,
       nomePaciente: paciente.nome ?? "",
       idade: idadePacienteAtual,
       dataAvaliacaoPaciente: paciente.data_avaliacao ?? "",
