@@ -1,8 +1,9 @@
 import jwt from "jsonwebtoken";
+import { tokenCancelado } from "../service/authService.js";
 
 const getJwtSecret = () => process.env.JWT_SECRET;
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -13,6 +14,12 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, getJwtSecret());
+
+    if (await tokenCancelado(token)) {
+      return res.status(401).json({ error: "Token inválido ou expirado." });
+    }
+
+    req.token = token;
     req.user = {
       id: decoded.sub,
       email: decoded.email,
@@ -25,13 +32,4 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-const requireAdmin = (req, res, next) => {
-  if (req.user?.role !== "ADMIN") {
-    return res.status(403).json({ error: "Acesso permitido apenas para admin." });
-  }
-
-  return next();
-};
-
 export default authMiddleware;
-export { requireAdmin };

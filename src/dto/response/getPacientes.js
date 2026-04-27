@@ -5,11 +5,12 @@ const getPacienteResponseDto = (paciente) => {
 
   return {
     nome: paciente.nome,
+    rg: paciente.rg,
     dataNascimento: paciente.data_nascimento,
+    dataAvaliacao: paciente.data_avaliacao,
     sexo: paciente.sexo,
     escolaridade: paciente.escolaridade,
     observacoes: paciente.observacoes,
-    criadoEm: paciente.criado_em,
   };
 };
 

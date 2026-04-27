@@ -4,11 +4,13 @@ const PacientesSchema = new mongoose.Schema(
 	{
 		doutor_id: {
 			type: mongoose.Schema.Types.ObjectId,
-			ref: "Doutores",
+			ref: "Usuarios",
 			required: true,
 		},
 		nome: { type: String, required: true },
+		rg: { type: String },
 		data_nascimento: { type: Date },
+		data_avaliacao: { type: Date },
 		sexo: { type: String },
 		escolaridade: { type: String },
 		observacoes: { type: String },

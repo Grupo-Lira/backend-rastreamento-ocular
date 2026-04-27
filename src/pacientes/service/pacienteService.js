@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import Doutores from "../../models/Doutores.js";
 import Pacientes from "../../models/Pacientes.js";
+import Usuarios from "../../models/Usuarios.js";
 
 const validarId = (id) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -13,18 +13,18 @@ const validarId = (id) => {
 const getDoutor = async (usuarioId) => {
   validarId(usuarioId);
 
-  const doutor = await Doutores.findOne({ usuario_id: usuarioId }).lean();
-  if (!doutor) {
-    const err = new Error("Perfil de doutor não encontrado.");
+  const usuario = await Usuarios.findById(usuarioId).lean();
+  if (!usuario) {
+    const err = new Error("Perfil de usuário não encontrado.");
     err.status = 404;
     throw err;
   }
 
-  return doutor;
+  return usuario;
 };
 
-const criar = async (usuarioId, dados = {}) => {
-  const doutor = await getDoutor(usuarioId);
+const create = async (usuarioId, dados = {}) => {
+  await getDoutor(usuarioId);
 
   if (!dados.nome) {
     const err = new Error("Campo obrigatório: nome.");
@@ -32,53 +32,58 @@ const criar = async (usuarioId, dados = {}) => {
     throw err;
   }
 
-  const existe = await Pacientes.findOne({
-    doutor_id: doutor._id,
-    nome: dados.nome,
-  }).lean();
+  if (dados.rg) {
+    const existeRg = await Pacientes.findOne({
+      doutor_id: usuarioId,
+      rg: dados.rg,
+    }).lean();
 
-  if (existe) {
-    const err = new Error("Já existe paciente com este nome para este doutor.");
-    err.status = 409;
-    throw err;
+    if (existeRg) {
+      const err = new Error("Já existe paciente com este RG para este doutor.");
+      err.status = 409;
+      throw err;
+    }
   }
 
   const paciente = await Pacientes.create({
-    doutor_id: doutor._id,
+    doutor_id: usuarioId,
     nome: dados.nome,
+    rg: dados.rg,
     data_nascimento: dados.data_nascimento,
+    data_avaliacao: dados.data_avaliacao,
     sexo: dados.sexo,
     escolaridade: dados.escolaridade,
     observacoes: dados.observacoes,
   });
 
-  await Doutores.findByIdAndUpdate(doutor._id, {
+  await Usuarios.findByIdAndUpdate(usuarioId, {
     $addToSet: { pacientes_ids: paciente._id },
   });
 
   return paciente.toObject();
 };
 
-const listar = async (usuarioId) => {
-  const doutor = await getDoutor(usuarioId);
+const getall = async (usuarioId) => {
+  await getDoutor(usuarioId);
 
-  return Pacientes.find({ doutor_id: doutor._id })
+  return Pacientes.find({ doutor_id: usuarioId })
     .sort({ criado_em: -1 })
     .lean();
 };
 
-const buscarPorNome = async (usuarioId, nome) => {
-  const doutor = await getDoutor(usuarioId);
+const getById = async (usuarioId, id) => {
+  await getDoutor(usuarioId);
+  validarId(id);
 
-  if (!nome) {
-    const err = new Error("Nome do paciente é obrigatório.");
+  if (!id) {
+    const err = new Error("ID do paciente é obrigatório.");
     err.status = 400;
     throw err;
   }
 
   const paciente = await Pacientes.findOne({
-    doutor_id: doutor._id,
-    nome,
+    doutor_id: usuarioId,
+    _id: id,
   }).lean();
 
   if (!paciente) {
@@ -90,18 +95,19 @@ const buscarPorNome = async (usuarioId, nome) => {
   return paciente;
 };
 
-const editar = async (usuarioId, nome, dados = {}) => {
-  const doutor = await getDoutor(usuarioId);
+const updateById = async (usuarioId, id, campos = {}) => {
+  await getDoutor(usuarioId);
+  validarId(id);
 
-  if (!nome) {
-    const err = new Error("Nome do paciente é obrigatório.");
+  if (!id) {
+    const err = new Error("ID do paciente é obrigatório.");
     err.status = 400;
     throw err;
   }
 
   const paciente = await Pacientes.findOne({
-    doutor_id: doutor._id,
-    nome,
+    doutor_id: usuarioId,
+    _id: id,
   }).lean();
 
   if (!paciente) {
@@ -110,12 +116,7 @@ const editar = async (usuarioId, nome, dados = {}) => {
     throw err;
   }
 
-  const atualizacao =
-    dados && typeof dados === "object" && !Array.isArray(dados)
-      ? { ...dados }
-      : {};
-
-  if (Object.keys(atualizacao).length === 0) {
+  if (Object.keys(campos).length === 0) {
     const err = new Error(
       "Nenhum campo válido para atualização foi informado.",
     );
@@ -123,40 +124,39 @@ const editar = async (usuarioId, nome, dados = {}) => {
     throw err;
   }
 
-  if (atualizacao.nome && atualizacao.nome !== paciente.nome) {
-    const existeOutro = await Pacientes.findOne({
+  if (campos.rg && campos.rg !== paciente.rg) {
+    const existeOutroRg = await Pacientes.findOne({
       _id: { $ne: paciente._id },
-      doutor_id: doutor._id,
-      nome: atualizacao.nome,
+      doutor_id: usuarioId,
+      rg: campos.rg,
     }).lean();
 
-    if (existeOutro) {
-      const err = new Error(
-        "Já existe paciente com este nome para este doutor.",
-      );
+    if (existeOutroRg) {
+      const err = new Error("Já existe paciente com este RG para este doutor.");
       err.status = 409;
       throw err;
     }
   }
 
-  return Pacientes.findByIdAndUpdate(paciente._id, atualizacao, {
+  return Pacientes.findByIdAndUpdate(paciente._id, campos, {
     new: true,
     runValidators: true,
   }).lean();
 };
 
-const deletar = async (usuarioId, nome) => {
-  const doutor = await getDoutor(usuarioId);
+const deleteById = async (usuarioId, id) => {
+  await getDoutor(usuarioId);
+  validarId(id);
 
-  if (!nome) {
-    const err = new Error("Nome do paciente é obrigatório.");
+  if (!id) {
+    const err = new Error("ID do paciente é obrigatório.");
     err.status = 400;
     throw err;
   }
 
   const paciente = await Pacientes.findOneAndDelete({
-    doutor_id: doutor._id,
-    nome,
+    doutor_id: usuarioId,
+    _id: id,
   }).lean();
 
   if (!paciente) {
@@ -165,12 +165,12 @@ const deletar = async (usuarioId, nome) => {
     throw err;
   }
 
-  await Doutores.findByIdAndUpdate(doutor._id, {
+  await Usuarios.findByIdAndUpdate(usuarioId, {
     $pull: { pacientes_ids: paciente._id },
   });
 
   return paciente;
 };
 
-export { buscarPorNome, criar, deletar, editar, listar };
+export { create, deleteById, getall, getById, getDoutor, updateById };
 

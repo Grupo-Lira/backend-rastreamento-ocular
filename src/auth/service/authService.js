@@ -1,29 +1,24 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { getRedis } from "../../database/redis/redisConfig.js";
 import Usuarios from "../../models/Usuarios.js";
 
 const getJwtSecret = () => process.env.JWT_SECRET;
+
+const BLOQUEIO_PREFIXO = "auth:blocklist:";
+
+const tokenBloqueado = (token) => `${BLOQUEIO_PREFIXO}${token}`;
 
 const isBcryptHash = (senha) => {
   return typeof senha === "string" && /^\$2[aby]\$\d{2}\$/.test(senha);
 };
 
 const validarSenhaLogin = async (senhaInformada, usuario) => {
-  const senhaAtual = String(usuario.senha || "");
-
-  if (isBcryptHash(senhaAtual)) {
-    const confere = await bcrypt.compare(String(senhaInformada), senhaAtual);
-    return { confere, senhaMigrada: false };
-  }
-
-  const confere = String(senhaInformada) === senhaAtual;
-  if (!confere) {
-    return { confere: false, senhaMigrada: false };
-  }
-
-  const novaSenhaHash = await bcrypt.hash(String(senhaInformada), 10);
-  await Usuarios.findByIdAndUpdate(usuario._id, { senha: novaSenhaHash });
-  return { confere: true, senhaMigrada: true };
+  const senhaTexto = String(senhaInformada);
+  const senhaAtual = String(usuario.senha);
+  return isBcryptHash(senhaAtual)
+    ? await bcrypt.compare(senhaTexto, senhaAtual)
+    : senhaTexto === senhaAtual;
 };
 
 const gerarToken = (usuario) =>
@@ -37,33 +32,41 @@ const gerarToken = (usuario) =>
     { expiresIn: process.env.JWT_EXPIRACAO },
   );
 
-const registrarUser = async ({ email, senha }) => {
-  if (!email || !senha) {
+const registerUsuario = async ({
+  nome,
+  telefone,
+  especialidade,
+  email,
+  senha,
+}) => {
+  if (!nome || !telefone || !especialidade || !email || !senha) {
     const err = new Error(
-      "Campos obrigatórios: email e senha.",
+      "Campos obrigatórios: nome, telefone, especialidade, email e senha.",
     );
     err.status = 400;
     throw err;
   }
 
-  const emailNormalizado = String(email).toLowerCase().trim();
-  const existente = await Usuarios.findOne({ email: emailNormalizado }).lean();
+  const existente = await Usuarios.findOne({ email }).lean();
   if (existente) {
     const err = new Error("Já existe usuário cadastrado com este email.");
     err.status = 409;
     throw err;
   }
 
-  const senhaHash = await bcrypt.hash(String(senha), 10);
+  const senhaCriptografada = await bcrypt.hash(String(senha), 10);
 
   const usuario = await Usuarios.create({
-    email: emailNormalizado,
-    senha: senhaHash,
+    nome,
+    telefone,
+    especialidade,
+    email,
+    senha: senhaCriptografada,
     role: "DOUTOR",
   });
 
-  const token = gerarToken(usuario);
-  return { token, usuario: usuario.toJSON() };
+  const token = criarToken(usuario);
+  return { token };
 };
 
 const login = async ({ email, senha }) => {
@@ -73,10 +76,7 @@ const login = async ({ email, senha }) => {
     throw err;
   }
 
-  const emailNormalizado = String(email).toLowerCase().trim();
-  const usuario = await Usuarios.findOne({ email: emailNormalizado }).select(
-    "+senha", 
-  );
+  const usuario = await Usuarios.findOne({ email }).select("+senha");
 
   if (!usuario) {
     const err = new Error("Credenciais inválidas.");
@@ -84,15 +84,41 @@ const login = async ({ email, senha }) => {
     throw err;
   }
 
-  const { confere: senhaConfere } = await validarSenhaLogin(senha, usuario);
+  const senhaConfere = await validarSenhaLogin(senha, usuario);
   if (!senhaConfere) {
-    const err = new Error("Credenciais inválidas.");
+    const err = new Error("Senha inválida.");
     err.status = 401;
     throw err;
   }
 
   const token = gerarToken(usuario);
-  return { token, usuario: usuario.toJSON() };
+  return { token };
 };
 
-export { login, registrarUser };
+const logout = async (token) => {
+  if (!token) {
+    const err = new Error("Token de acesso não informado.");
+    err.status = 401;
+    throw err;
+  }
+
+  const payload = jwt.decode(token);
+  const ttl =
+    payload && typeof payload.exp === "number"
+      ? Math.max(0, payload.exp - Math.floor(Date.now() / 1000)) || 60
+      : 60;
+
+  await getRedis().set(tokenBloqueado(token), "1", "EX", ttl);
+};
+
+const tokenCancelado = async (token) => {
+  if (!token) {
+    return false;
+  }
+
+  const redis = getRedis();
+  const existe = await redis.exists(tokenBloqueado(token));
+  return existe === 1;
+};
+
+export { login, logout, registerUsuario, tokenCancelado };

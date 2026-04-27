@@ -1,6 +1,24 @@
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 
+const EXEMPLO_USUARIO = {
+  nome: "Dra. Ana",
+  telefone: "11999999999",
+  especialidade: "Neurologia",
+  email: "novo@empresa.com",
+  senha: "123456",
+};
+
+const EXEMPLO_PACIENTE = {
+  nome: "Carlos Silva",
+  rg: "123456789",
+  data_nascimento: "1998-06-25T00:00:00.000Z",
+  data_avaliacao: "2026-04-23T10:00:00.000Z",
+  sexo: "M",
+  escolaridade: "Ensino Superior",
+  observacoes: "Paciente com sensibilidade a luz forte.",
+};
+
 const options = {
   definition: {
     openapi: "3.0.0",
@@ -26,15 +44,40 @@ const options = {
         LoginRequest: {
           type: "object",
           properties: {
-            email: { type: "string", example: "admin@empresa.com" },
-            senha: { type: "string", example: "123456" },
+            email: { type: "string", example: EXEMPLO_USUARIO.email },
+            senha: { type: "string", example: EXEMPLO_USUARIO.senha },
           },
         },
         RegisterRequest: {
           type: "object",
+          required: ["nome", "telefone", "especialidade", "email", "senha"],
           properties: {
-            email: { type: "string", example: "novo@empresa.com" },
-            senha: { type: "string", example: "123456" },
+            nome: { type: "string", example: EXEMPLO_USUARIO.nome },
+            telefone: { type: "string", example: EXEMPLO_USUARIO.telefone },
+            especialidade: {
+              type: "string",
+              example: EXEMPLO_USUARIO.especialidade,
+            },
+            email: { type: "string", example: EXEMPLO_USUARIO.email },
+            senha: { type: "string", example: EXEMPLO_USUARIO.senha },
+          },
+        },
+        AuthTokenResponse: {
+          type: "object",
+          properties: {
+            token: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+        },
+        LogoutResponse: {
+          type: "object",
+          properties: {
+            message: {
+              type: "string",
+              example: "Logout realizado com sucesso.",
+            },
           },
         },
         CreateDoctorProfileRequest: {
@@ -48,50 +91,65 @@ const options = {
         UpdateDoctorRequest: {
           type: "object",
           properties: {
-            nome: { type: "string", example: "Dra. Ana Souza" },
-            email: { type: "string", example: "ana.nova@clinica.com" },
-            telefone: { type: "string", example: "11888888888" },
-            especialidade: { type: "string", example: "Neuroftalmologia" },
-          },
-        },
-        UpdateUserRequest: {
-          type: "object",
-          properties: {
-            email: { type: "string", example: "user@empresa.com" },
+            nome: { type: "string", example: EXEMPLO_USUARIO.nome },
+            email: { type: "string", example: EXEMPLO_USUARIO.email },
+            telefone: { type: "string", example: EXEMPLO_USUARIO.telefone },
+            especialidade: {
+              type: "string",
+              example: EXEMPLO_USUARIO.especialidade,
+            },
           },
         },
         CreatePacienteRequest: {
           type: "object",
           required: ["nome"],
           properties: {
-            nome: { type: "string", example: "Carlos Silva" },
+            nome: { type: "string", example: EXEMPLO_PACIENTE.nome },
+            rg: { type: "string", example: EXEMPLO_PACIENTE.rg },
             data_nascimento: {
               type: "string",
               format: "date-time",
-              example: "1998-06-25T00:00:00.000Z",
+              example: EXEMPLO_PACIENTE.data_nascimento,
             },
-            sexo: { type: "string", example: "M" },
-            escolaridade: { type: "string", example: "Ensino Superior" },
+            data_avaliacao: {
+              type: "string",
+              format: "date-time",
+              example: EXEMPLO_PACIENTE.data_avaliacao,
+            },
+            sexo: { type: "string", example: EXEMPLO_PACIENTE.sexo },
+            escolaridade: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.escolaridade,
+            },
             observacoes: {
               type: "string",
-              example: "Paciente com sensibilidade a luz forte.",
+              example: EXEMPLO_PACIENTE.observacoes,
             },
           },
         },
         UpdatePacienteRequest: {
           type: "object",
           properties: {
-            nome: { type: "string", example: "Carlos Silva Junior" },
+            nome: { type: "string", example: EXEMPLO_PACIENTE.nome },
+            rg: { type: "string", example: EXEMPLO_PACIENTE.rg },
             data_nascimento: {
               type: "string",
               format: "date-time",
-              example: "1998-06-25T00:00:00.000Z",
+              example: EXEMPLO_PACIENTE.data_nascimento,
             },
-            sexo: { type: "string", example: "M" },
-            escolaridade: { type: "string", example: "Pos-graduacao" },
+            data_avaliacao: {
+              type: "string",
+              format: "date-time",
+              example: EXEMPLO_PACIENTE.data_avaliacao,
+            },
+            sexo: { type: "string", example: EXEMPLO_PACIENTE.sexo },
+            escolaridade: {
+              type: "string",
+              example: EXEMPLO_PACIENTE.escolaridade,
+            },
             observacoes: {
               type: "string",
-              example: "Atualizado em consulta recente.",
+              example: EXEMPLO_PACIENTE.observacoes,
             },
           },
         },
@@ -122,7 +180,14 @@ const options = {
             },
           },
           responses: {
-            201: { description: "Usuario criado" },
+            201: {
+              description: "Usuário criado",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AuthTokenResponse" },
+                },
+              },
+            },
           },
         },
       },
@@ -139,47 +204,44 @@ const options = {
             },
           },
           responses: {
-            200: { description: "Token JWT" },
-          },
-        },
-      },
-      "/api/doutores": {
-        post: {
-          tags: ["Doctors"],
-          summary: "Create my doctor profile",
-          security: [{ bearerAuth: [] }],
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/CreateDoctorProfileRequest",
+            200: {
+              description: "Token JWT",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AuthTokenResponse" },
                 },
               },
             },
           },
-          responses: {
-            201: { description: "Perfil de doutor criado" },
-            400: { description: "Campos obrigatorios faltando" },
-            409: { description: "Usuario ja tem um perfil de doutor" },
-          },
-        },
-        get: {
-          tags: ["Doctors"],
-          summary: "Get all doctors (admin only)",
-          security: [{ bearerAuth: [] }],
-          responses: { 200: { description: "Lista de doutores" } },
         },
       },
-      "/api/doutores/me": {
+      "/api/auth/logout": {
+        post: {
+          tags: ["Auth"],
+          summary: "Logout",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: "Logout realizado com sucesso",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/LogoutResponse" },
+                },
+              },
+            },
+            401: { description: "Token inválido ou expirado" },
+          },
+        },
+      },
+      "/api/usuarios": {
         get: {
-          tags: ["Doctors"],
+          tags: ["Users"],
           summary: "Get my profile",
           security: [{ bearerAuth: [] }],
-          responses: { 200: { description: "Perfil do doutor" } },
+          responses: { 200: { description: "Perfil do usuário" } },
         },
         put: {
-          tags: ["Doctors"],
+          tags: ["Users"],
           summary: "Update my profile",
           security: [{ bearerAuth: [] }],
           requestBody: {
@@ -192,87 +254,17 @@ const options = {
           },
           responses: { 200: { description: "Perfil atualizado" } },
         },
-      },
-      "/api/doutores/{id}": {
-        get: {
-          tags: ["Doctors"],
-          summary: "Get doctor by id (admin only)",
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              schema: { type: "string" },
-            },
-          ],
-          responses: { 200: { description: "Doutor" } },
-        },
-        delete: {
-          tags: ["Doctors"],
-          summary: "Delete doctor (admin only)",
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              schema: { type: "string" },
-            },
-          ],
-          responses: { 204: { description: "Doutor removido" } },
-        },
-      },
-      "/api/usuarios": {
-        get: {
-          tags: ["Users"],
-          summary: "Get all users (admin only)",
-          security: [{ bearerAuth: [] }],
-          responses: { 200: { description: "Lista de usuarios" } },
-        },
-      },
-      "/api/usuarios/{id}": {
-        put: {
-          tags: ["Users"],
-          summary: "Update user (admin only)",
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              schema: { type: "string" },
-            },
-          ],
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/UpdateUserRequest" },
-              },
-            },
-          },
-          responses: { 200: { description: "Usuario atualizado" } },
-        },
         delete: {
           tags: ["Users"],
-          summary: "Delete user (admin only)",
+          summary: "Delete my profile",
           security: [{ bearerAuth: [] }],
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              schema: { type: "string" },
-            },
-          ],
-          responses: { 204: { description: "Usuario removido" } },
+          responses: { 204: { description: "Perfil removido" } },
         },
       },
       "/api/pacientes": {
         post: {
           tags: ["Pacientes"],
-          summary: "Criar paciente para o doutor logado",
+          summary: "Criar paciente para o usuario logado",
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -285,7 +277,7 @@ const options = {
           responses: {
             201: { description: "Paciente criado" },
             400: { description: "Dados inválidos" },
-            409: { description: "Paciente com mesmo nome ja existe" },
+            409: { description: "Paciente com mesmo RG ja existe" },
           },
         },
         get: {
@@ -293,18 +285,18 @@ const options = {
           summary: "Listar meus pacientes",
           security: [{ bearerAuth: [] }],
           responses: {
-            200: { description: "Lista de pacientes do doutor logado" },
+            200: { description: "Lista de pacientes do usuario logado" },
           },
         },
       },
-      "/api/pacientes/{nome}": {
+      "/api/pacientes/{id}": {
         get: {
           tags: ["Pacientes"],
-          summary: "Buscar paciente por nome",
+          summary: "Buscar paciente por ID",
           security: [{ bearerAuth: [] }],
           parameters: [
             {
-              name: "nome",
+              name: "id",
               in: "path",
               required: true,
               schema: { type: "string" },
@@ -317,11 +309,11 @@ const options = {
         },
         put: {
           tags: ["Pacientes"],
-          summary: "Editar paciente por nome",
+          summary: "Editar paciente por ID",
           security: [{ bearerAuth: [] }],
           parameters: [
             {
-              name: "nome",
+              name: "id",
               in: "path",
               required: true,
               schema: { type: "string" },
@@ -339,16 +331,16 @@ const options = {
             200: { description: "Paciente atualizado" },
             400: { description: "Nenhum campo valido informado" },
             404: { description: "Paciente nao encontrado" },
-            409: { description: "Ja existe outro paciente com este nome" },
+            409: { description: "Ja existe outro paciente com este RG" },
           },
         },
         delete: {
           tags: ["Pacientes"],
-          summary: "Deletar paciente por nome",
+          summary: "Deletar paciente por ID",
           security: [{ bearerAuth: [] }],
           parameters: [
             {
-              name: "nome",
+              name: "id",
               in: "path",
               required: true,
               schema: { type: "string" },
