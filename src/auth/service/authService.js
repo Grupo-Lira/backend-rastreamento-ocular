@@ -65,7 +65,7 @@ const registerUsuario = async ({
     role: "DOUTOR",
   });
 
-  const token = criarToken(usuario);
+  const token = gerarToken(usuario);
   return { token };
 };
 
