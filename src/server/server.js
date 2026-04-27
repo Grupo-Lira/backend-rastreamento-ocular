@@ -5,10 +5,21 @@ import authRoutes from "../auth/routes/auth.routes.js";
 import { setupSwagger } from "../docs/swagger.js";
 import pacientesRoutes from "../pacientes/routes/pacientes.routes.js";
 import usuariosRoutes from "../usuarios/routes/usuarios.routes.js";
+import cors from "cors";
+
+const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGINS || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim());
 
 const app = express();
 const httpServer = createServer(app);
 
+app.use(
+  cors({
+    origin: FRONTEND_ORIGINS,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 setupSwagger(app);
