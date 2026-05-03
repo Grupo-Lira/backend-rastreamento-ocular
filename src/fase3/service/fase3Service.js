@@ -219,8 +219,10 @@ const gerarEstatisticasFase3 = async (expId) => {
     ),
   };
 
+  const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
+  
   const estatisticasPayload = {
-    usuario_id: experimento.client_id,
+    usuario_id: usuarioId,
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
     variabilidade_temporal_respostas_ms: trDesvioPadrao,
