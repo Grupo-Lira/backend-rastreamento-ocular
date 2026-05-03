@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 
 import EstatisticasFase1 from "../../models/EstatisticasFase1.js";
 import EstatisticasFase3 from "../../models/EstatisticasFase3.js";
+import experimentos_fase2 from "../../models/ExperimentosFase2.js";
 import Pacientes from "../../models/Pacientes.js";
-import ResultadoAnalise from "../../models/ResultadoAnalise.js";
 
 const validarObjectId = (id, campo) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -81,27 +81,29 @@ class RelatorioService {
   }
 
   async buscarMetricasPaciente(pacienteId) {
-    const [resultadoAnalise, estatisticaFase1, estatisticaFase3] =
+    const objId = new mongoose.Types.ObjectId(String(pacienteId));
+
+    const [estatisticaFase1, experimentoFase2, estatisticaFase3] =
       await Promise.all([
-        ResultadoAnalise.findOne({ client_id: String(pacienteId) })
+        EstatisticasFase1.findOne({ usuario_id: objId })
           .sort({ timestamp_analise: -1 })
           .lean(),
-        EstatisticasFase1.findOne({ usuario_id: pacienteId })
-          .sort({ timestamp_analise: -1 })
+        experimentos_fase2
+          .findOne({ usuario_id: objId })
+          .sort({ data_hora: -1 })
           .lean(),
-        EstatisticasFase3.findOne({ usuario_id: String(pacienteId) })
+        EstatisticasFase3.findOne({ usuario_id: objId })
           .sort({ timestamp_analise: -1 })
           .lean(),
       ]);
 
-    const fonteComResumo =
-      resultadoAnalise?.resumo_metricas ||
-      estatisticaFase3?.resumo_metricas ||
-      estatisticaFase1?.resumo_metricas
-        ? (resultadoAnalise ?? estatisticaFase3 ?? estatisticaFase1)
-        : null;
+    const temFase1 = !!estatisticaFase1?.resumo_metricas;
+    const temFase2 =
+      typeof experimentoFase2?.acertos === "number" ||
+      experimentoFase2?.acertos != null;
+    const temFase3 = !!estatisticaFase3?.resumo_metricas;
 
-    if (!fonteComResumo) {
+    if (!temFase1 && !temFase2 && !temFase3) {
       return {
         tempoReacaoMs: null,
         acertos: 0,
@@ -110,56 +112,175 @@ class RelatorioService {
       };
     }
 
-    return extrairResumoMetricas(fonteComResumo);
+    let metricas = {
+      tempoReacaoMs: null,
+      variabilidadeTemporalRespostasMs: null,
+      acertos: 0,
+      errosOmissao: 0,
+      errosComissao: 0,
+    };
+
+    if (temFase1) {
+      const fase1 = extrairResumoMetricas(estatisticaFase1);
+      metricas.tempoReacaoMs = fase1.tempoReacaoMs;
+      metricas.variabilidadeTemporalRespostasMs =
+        fase1.variabilidadeTemporalRespostasMs;
+      metricas.acertos += fase1.acertos;
+      metricas.errosOmissao += fase1.errosOmissao;
+      metricas.errosComissao += fase1.errosComissao;
+    }
+
+    if (temFase2) {
+      metricas.acertos += experimentoFase2.acertos ?? 0;
+    }
+
+    if (temFase3) {
+      const fase3 = extrairResumoMetricas(estatisticaFase3);
+      metricas.tempoReacaoMs = metricas.tempoReacaoMs ?? fase3.tempoReacaoMs;
+      metricas.variabilidadeTemporalRespostasMs =
+        metricas.variabilidadeTemporalRespostasMs ??
+        fase3.variabilidadeTemporalRespostasMs;
+      metricas.acertos += fase3.acertos;
+      metricas.errosOmissao += fase3.errosOmissao;
+      metricas.errosComissao += fase3.errosComissao;
+    }
+
+    return metricas;
   }
 
-async buscarMediasPorIdade() {
+  async buscarMediasPorIdade() {
     const anoAtual = new Date().getFullYear();
     const idadesAlvo = [10, 11, 12];
 
-    const medias = await ResultadoAnalise.aggregate([
-      {
-        $lookup: {
-          from: "pacientes",
-          let: { clientId: "$client_id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ["$_id", { $toObjectId: "$$clientId" }] }
-              }
-            }
-          ],
-          as: "dados_paciente"
-        }
-      },
-      { $unwind: "$dados_paciente" },
-      {
-        $addFields: {
-          idadeCalculada: {
-            $subtract: [
-              anoAtual,
-              { $year: { $dateFromString: { dateString: "$dados_paciente.data_nascimento" } } }
-            ]
-          }
-        }
-      },
-      { $match: { idadeCalculada: { $in: idadesAlvo } } },
-      {
-        $group: {
-          _id: "$idadeCalculada",
-          mediaAcertos: { $avg: "$resumo_metricas.total_acertos" }
-        }
-      },
-      { $sort: { _id: 1 } }
+    const [mediasFase1, mediasFase2, mediasFase3] = await Promise.all([
+      EstatisticasFase1.aggregate([
+        {
+          $lookup: {
+            from: "pacientes",
+            localField: "usuario_id",
+            foreignField: "_id",
+            as: "dados_paciente",
+          },
+        },
+        { $unwind: "$dados_paciente" },
+        {
+          $addFields: {
+            idadeCalculada: {
+              $subtract: [
+                anoAtual,
+                {
+                  $year: {
+                    $dateFromString: {
+                      dateString: "$dados_paciente.data_nascimento",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $match: { idadeCalculada: { $in: idadesAlvo } } },
+        {
+          $group: {
+            _id: "$idadeCalculada",
+            mediaAcertos: { $avg: "$resumo_metricas.total_acertos" },
+          },
+        },
+      ]),
+      experimentos_fase2.aggregate([
+        {
+          $lookup: {
+            from: "pacientes",
+            localField: "usuario_id",
+            foreignField: "_id",
+            as: "dados_paciente",
+          },
+        },
+        { $unwind: "$dados_paciente" },
+        {
+          $addFields: {
+            idadeCalculada: {
+              $subtract: [
+                anoAtual,
+                {
+                  $year: {
+                    $dateFromString: {
+                      dateString: "$dados_paciente.data_nascimento",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $match: { idadeCalculada: { $in: idadesAlvo } } },
+        {
+          $group: {
+            _id: "$idadeCalculada",
+            mediaAcertos: { $avg: "$acertos" },
+          },
+        },
+      ]),
+      EstatisticasFase3.aggregate([
+        {
+          $lookup: {
+            from: "pacientes",
+            localField: "usuario_id",
+            foreignField: "_id",
+            as: "dados_paciente",
+          },
+        },
+        { $unwind: "$dados_paciente" },
+        {
+          $addFields: {
+            idadeCalculada: {
+              $subtract: [
+                anoAtual,
+                {
+                  $year: {
+                    $dateFromString: {
+                      dateString: "$dados_paciente.data_nascimento",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $match: { idadeCalculada: { $in: idadesAlvo } } },
+        {
+          $group: {
+            _id: "$idadeCalculada",
+            mediaAcertos: { $avg: "$resumo_metricas.total_acertos" },
+          },
+        },
+      ]),
     ]);
 
-    return idadesAlvo.map(idade => {
-      const dado = medias.find(m => m._id === idade);
-      return {
-        idade: idade,
-        mediaAcertos: dado ? Number(dado.mediaAcertos.toFixed(2)) : 0
-      };
+    const sums = {};
+    const counts = {};
+    idadesAlvo.forEach((idade) => {
+      sums[idade] = 0;
+      counts[idade] = 0;
     });
+
+    const add = (m) => {
+      if (m && m._id != null) {
+        sums[m._id] = (sums[m._id] || 0) + m.mediaAcertos;
+        counts[m._id] = (counts[m._id] || 0) + 1;
+      }
+    };
+
+    mediasFase1.forEach(add);
+    mediasFase2.forEach(add);
+    mediasFase3.forEach(add);
+
+    return idadesAlvo.map((idade) => ({
+      idade,
+      mediaAcertos: counts[idade]
+        ? Number((sums[idade] / counts[idade]).toFixed(2))
+        : 0,
+    }));
   }
 
   async buscarDadosRelatorioPaciente(doutorId, pacienteId) {
@@ -190,7 +311,6 @@ async buscarMediasPorIdade() {
       errosComissao: metricas.errosComissao,
       observacoes: paciente.observacoes ?? "",
       dadosComparativos: dadosComparativos,
-
     };
   }
 }
