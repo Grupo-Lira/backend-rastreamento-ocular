@@ -33,15 +33,12 @@ const gerarToken = (usuario) =>
   );
 
 const registerUsuario = async ({
-  nome,
-  telefone,
-  especialidade,
   email,
   senha,
 }) => {
-  if (!nome || !telefone || !especialidade || !email || !senha) {
+  if (!email || !senha) {
     const err = new Error(
-      "Campos obrigatórios: nome, telefone, especialidade, email e senha.",
+      "Campos obrigatórios: email e senha.",
     );
     err.status = 400;
     throw err;
@@ -57,9 +54,6 @@ const registerUsuario = async ({
   const senhaCriptografada = await bcrypt.hash(String(senha), 10);
 
   const usuario = await Usuarios.create({
-    nome,
-    telefone,
-    especialidade,
     email,
     senha: senhaCriptografada,
     role: "DOUTOR",
