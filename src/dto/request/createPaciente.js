@@ -4,9 +4,9 @@ const createPacienteDto = (dadosEntrada = {}) => {
   return {
     nome: body.nome,
     rg: body.rg,
-    motivoAvaliacao: body.motivoAvaliacao,
-    dataNascimento: body.dataNascimento,
-    dataAvaliacao: body.dataAvaliacao,
+    motivo_avaliacao: body.motivoAvaliacao,
+    data_nascimento: body.dataNascimento,
+    data_avaliacao: body.dataAvaliacao,
     sexo: body.sexo,
     escolaridade: body.escolaridade,
   };
