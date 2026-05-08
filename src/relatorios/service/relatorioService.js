@@ -172,6 +172,7 @@ class RelatorioService {
                   $year: {
                     $dateFromString: {
                       dateString: "$dados_paciente.data_nascimento",
+                      format: "%d/%m/%Y",
                     },
                   },
                 },
@@ -206,6 +207,7 @@ class RelatorioService {
                   $year: {
                     $dateFromString: {
                       dateString: "$dados_paciente.data_nascimento",
+                      format: "%d/%m/%Y",
                     },
                   },
                 },
@@ -240,6 +242,7 @@ class RelatorioService {
                   $year: {
                     $dateFromString: {
                       dateString: "$dados_paciente.data_nascimento",
+                      format: "%d/%m/%Y",
                     },
                   },
                 },

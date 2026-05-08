@@ -1,9 +1,11 @@
-const getPacienteResponseDto = (paciente) => {
+import relatorioService from "../../relatorios/service/relatorioService.js";
+
+const getPacienteResponseDto = async (paciente) => {
   if (!paciente) {
     return null;
   }
 
-  return {
+  const pacienteDto = {
     id: paciente._id,
     nome: paciente.nome,
     rg: paciente.rg,
@@ -14,14 +16,46 @@ const getPacienteResponseDto = (paciente) => {
     escolaridade: paciente.escolaridade,
     observacoes: paciente.observacoes,
   };
+
+  const metricas = await relatorioService.buscarMetricasPaciente(paciente._id);
+
+  if (metricas) {
+    const dadosComparativos = await relatorioService.buscarMediasPorIdade();
+
+    pacienteDto.metricas = {
+      tempoReacao: metricas.tempoReacaoMs
+        ? `${(metricas.tempoReacaoMs / 1000).toFixed(2)}s`
+        : null,
+      variabilidadeTemporalRespostas:
+        metricas.variabilidadeTemporalRespostasMs && metricas.tempoReacaoMs
+          ? `${((metricas.variabilidadeTemporalRespostasMs / metricas.tempoReacaoMs) * 100).toFixed(2)}%`
+          : null,
+      acertos: metricas.acertos,
+      errosOmissao: metricas.errosOmissao,
+      errosComissao: metricas.errosComissao,
+      dadosComparativos: dadosComparativos,
+    };
+  }
+
+  return pacienteDto;
 };
 
-const getPacientesResponseDto = (pacientes = []) => {
+const getPacientesResponseDto = async (pacientes = []) => {
   if (!Array.isArray(pacientes)) {
     return [];
   }
+  try {
+    const pacientesDto = [];
+    for (const paciente of pacientes) {
+      const pacienteDto = await getPacienteResponseDto(paciente);
+      pacientesDto.push(pacienteDto);
+    }
 
-  return pacientes.map(getPacienteResponseDto);
+    return pacientesDto;
+  } catch (error) {
+    console.error("Erro em getPacientesResponseDto:", error);
+    return [];
+  }
 };
 
 export { getPacienteResponseDto, getPacientesResponseDto };

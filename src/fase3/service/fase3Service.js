@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import {
   DWELL_REQUIRED_MS,
   clearAlvosFase3,
@@ -141,7 +142,7 @@ const analisarAlvoFase3 = (resultado, historico) => {
   const concluiuFocoMinimo = focoMaximoMs >= DWELL_REQUIRED_MS;
   const houveQuebraFoco = eventosDoAlvo.length > 2; // mais de 2 eventos (foco-desvio-foco) indica que houve uma quebra de foco durante o alvo
 
-  
+
   const quantidadeComissaoEventos = eventosDoAlvo.filter(
     (evento) => evento?.tipo === "DESVIO_COMISSAO",
   ).length;
