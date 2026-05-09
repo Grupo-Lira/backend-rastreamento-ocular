@@ -194,9 +194,9 @@ const options = {
               example: [
                 { idade: 10, mediaAcertos: 8.0 },
                 { idade: 11, mediaAcertos: 7.5 },
-                { idade: 12, mediaAcertos: 9.2 }
-              ]
-            }
+                { idade: 12, mediaAcertos: 9.2 },
+              ],
+            },
           },
         },
         RelatorioPacienteDataResponse: {
@@ -412,10 +412,12 @@ const options = {
           },
         },
       },
-      "/api/relatorios/{id}/": {
+      "/api/relatorios/pdf/{id}": {
         get: {
           tags: ["Relatorios"],
-          summary: "Obter dados do relatorio de um paciente",
+          summary: "Baixar relatório PDF do paciente",
+          description:
+            "Gera e faz download de um relatório PDF completo com dados do paciente, métricas e comparativos por idade.",
           security: [{ bearerAuth: [] }],
           parameters: [
             {
@@ -428,19 +430,21 @@ const options = {
           ],
           responses: {
             200: {
-              description: "Dados do relatorio retornados com sucesso",
+              description: "PDF gerado com sucesso",
               content: {
-                "application/json": {
+                "application/pdf": {
                   schema: {
-                    $ref: "#/components/schemas/RelatorioPacienteDataResponse",
+                    type: "string",
+                    format: "binary",
                   },
                 },
               },
             },
-            400: { description: "ID invalido" },
-            401: { description: "Nao autenticado" },
-            404: { description: "Paciente nao encontrado" },
-            500: { description: "Erro interno" },
+            400: { description: "ID inválido" },
+            401: { description: "Não autenticado" },
+            403: { description: "Sem permissão para acessar este paciente" },
+            404: { description: "Paciente não encontrado" },
+            500: { description: "Erro ao gerar PDF" },
           },
         },
       },

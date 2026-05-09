@@ -62,6 +62,7 @@ const formatarVariabilidadeTemporal = (
 };
 
 class RelatorioService {
+  formatarVariabilidadeTemporal = formatarVariabilidadeTemporal;
   async buscarPacienteDoDoutor(doutorId, pacienteId) {
     validarObjectId(doutorId, "ID do doutor");
     validarObjectId(pacienteId, "ID do paciente");
@@ -89,7 +90,7 @@ class RelatorioService {
           .sort({ timestamp_analise: -1 })
           .lean(),
         experimentos_fase2
-          .findOne({ usuario_id: objId })
+          .findOne({ client_id: objId.toString() })
           .sort({ data_hora: -1 })
           .lean(),
         EstatisticasFase3.findOne({ usuario_id: objId })
@@ -98,18 +99,11 @@ class RelatorioService {
       ]);
 
     const temFase1 = !!estatisticaFase1?.resumo_metricas;
-    const temFase2 =
-      typeof experimentoFase2?.acertos === "number" ||
-      experimentoFase2?.acertos != null;
+    const temFase2 = !!experimentoFase2;
     const temFase3 = !!estatisticaFase3?.resumo_metricas;
 
-    if (!temFase1 && !temFase2 && !temFase3) {
-      return {
-        tempoReacaoMs: null,
-        acertos: 0,
-        errosOmissao: 0,
-        errosComissao: 0,
-      };
+    if (!temFase1 || !temFase2 || !temFase3) {
+      return null;
     }
 
     let metricas = {
@@ -136,10 +130,36 @@ class RelatorioService {
 
     if (temFase3) {
       const fase3 = extrairResumoMetricas(estatisticaFase3);
-      metricas.tempoReacaoMs = metricas.tempoReacaoMs ?? fase3.tempoReacaoMs;
-      metricas.variabilidadeTemporalRespostasMs =
-        metricas.variabilidadeTemporalRespostasMs ??
-        fase3.variabilidadeTemporalRespostasMs;
+
+      if (metricas.tempoReacaoMs && fase3.tempoReacaoMs) {
+        metricas.tempoReacaoMs =
+          (metricas.tempoReacaoMs + fase3.tempoReacaoMs) / 2;
+      } else if (fase3.tempoReacaoMs) {
+        metricas.tempoReacaoMs = fase3.tempoReacaoMs;
+      }
+
+      const variabilidades = [];
+
+      if (
+        metricas.variabilidadeTemporalRespostasMs !== null &&
+        metricas.variabilidadeTemporalRespostasMs !== undefined
+      ) {
+        variabilidades.push(metricas.variabilidadeTemporalRespostasMs);
+      }
+
+      if (
+        fase3.variabilidadeTemporalRespostasMs !== null &&
+        fase3.variabilidadeTemporalRespostasMs !== undefined
+      ) {
+        variabilidades.push(fase3.variabilidadeTemporalRespostasMs);
+      }
+
+      if (variabilidades.length > 0) {
+        metricas.variabilidadeTemporalRespostasMs =
+          variabilidades.reduce((sum, val) => sum + val, 0) /
+          variabilidades.length;
+      }
+
       metricas.acertos += fase3.acertos;
       metricas.errosOmissao += fase3.errosOmissao;
       metricas.errosComissao += fase3.errosComissao;
@@ -152,136 +172,150 @@ class RelatorioService {
     const anoAtual = new Date().getFullYear();
     const idadesAlvo = [10, 11, 12];
 
-    const [mediasFase1, mediasFase2, mediasFase3] = await Promise.all([
-      EstatisticasFase1.aggregate([
-        {
-          $lookup: {
-            from: "pacientes",
-            localField: "usuario_id",
-            foreignField: "_id",
-            as: "dados_paciente",
-          },
-        },
-        { $unwind: "$dados_paciente" },
-        {
-          $addFields: {
-            idadeCalculada: {
-              $subtract: [
-                anoAtual,
-                {
-                  $year: {
-                    $dateFromString: {
-                      dateString: "$dados_paciente.data_nascimento",
-                      format: "%d/%m/%Y",
-                    },
-                  },
-                },
-              ],
+    // Primeiro, obter todos os pacientes únicos por idade
+    const pacientesPorIdade = await Pacientes.aggregate([
+      {
+        $addFields: {
+          dataNascimentoObj: {
+            $dateFromString: {
+              dateString: "$data_nascimento",
+              format: "%d/%m/%Y",
             },
           },
         },
-        { $match: { idadeCalculada: { $in: idadesAlvo } } },
-        {
-          $group: {
-            _id: "$idadeCalculada",
-            mediaAcertos: { $avg: "$resumo_metricas.total_acertos" },
+      },
+      {
+        $addFields: {
+          idadeCalculada: {
+            $subtract: [
+              anoAtual,
+              {
+                $year: "$dataNascimentoObj",
+              },
+            ],
           },
-        },
-      ]),
-      experimentos_fase2.aggregate([
-        {
-          $lookup: {
-            from: "pacientes",
-            localField: "usuario_id",
-            foreignField: "_id",
-            as: "dados_paciente",
-          },
-        },
-        { $unwind: "$dados_paciente" },
-        {
-          $addFields: {
-            idadeCalculada: {
-              $subtract: [
-                anoAtual,
-                {
-                  $year: {
-                    $dateFromString: {
-                      dateString: "$dados_paciente.data_nascimento",
+          fezAniversarioEsteAno: {
+            $gte: [
+              {
+                $dateFromString: {
+                  dateString: {
+                    $dateToString: {
                       format: "%d/%m/%Y",
+                      date: "$$NOW",
                     },
                   },
+                  format: "%d/%m/%Y",
                 },
-              ],
+              },
+              {
+                $dateFromString: {
+                  dateString: {
+                    $concat: [
+                      {
+                        $dateToString: {
+                          format: "%d/%m/",
+                          date: "$dataNascimentoObj",
+                        },
+                      },
+                      {
+                        $dateToString: {
+                          format: "%Y",
+                          date: "$$NOW",
+                        },
+                      },
+                    ],
+                  },
+                  format: "%d/%m/%Y",
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          idadeFinal: {
+            $cond: {
+              if: "$fezAniversarioEsteAno",
+              then: "$idadeCalculada",
+              else: { $subtract: ["$idadeCalculada", 1] },
             },
           },
         },
-        { $match: { idadeCalculada: { $in: idadesAlvo } } },
-        {
-          $group: {
-            _id: "$idadeCalculada",
-            mediaAcertos: { $avg: "$acertos" },
-          },
+      },
+      { $match: { idadeFinal: { $in: idadesAlvo } } },
+      {
+        $group: {
+          _id: "$idadeFinal",
+          pacientes: { $push: "$_id" },
+          totalPacientes: { $sum: 1 },
         },
-      ]),
-      EstatisticasFase3.aggregate([
-        {
-          $lookup: {
-            from: "pacientes",
-            localField: "usuario_id",
-            foreignField: "_id",
-            as: "dados_paciente",
-          },
-        },
-        { $unwind: "$dados_paciente" },
-        {
-          $addFields: {
-            idadeCalculada: {
-              $subtract: [
-                anoAtual,
-                {
-                  $year: {
-                    $dateFromString: {
-                      dateString: "$dados_paciente.data_nascimento",
-                      format: "%d/%m/%Y",
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        },
-        { $match: { idadeCalculada: { $in: idadesAlvo } } },
-        {
-          $group: {
-            _id: "$idadeCalculada",
-            mediaAcertos: { $avg: "$resumo_metricas.total_acertos" },
-          },
-        },
-      ]),
+      },
     ]);
 
-    const sums = {};
-    const counts = {};
-    idadesAlvo.forEach((idade) => {
-      sums[idade] = 0;
-      counts[idade] = 0;
-    });
+    // Para cada idade, buscar os acertos totais de todas as fases
+    const resultado = {};
 
-    const add = (m) => {
-      if (m && m._id != null) {
-        sums[m._id] = (sums[m._id] || 0) + m.mediaAcertos;
-        counts[m._id] = (counts[m._id] || 0) + 1;
-      }
-    };
+    for (const idadeData of pacientesPorIdade) {
+      const idade = idadeData._id;
+      const pacienteIds = idadeData.pacientes;
 
-    mediasFase1.forEach(add);
-    mediasFase2.forEach(add);
-    mediasFase3.forEach(add);
+      if (pacienteIds.length === 0) continue;
+
+      // Buscar acertos de cada fase para os pacientes desta idade
+      const [acertosFase1, acertosFase2, acertosFase3] = await Promise.all([
+        EstatisticasFase1.aggregate([
+          { $match: { usuario_id: { $in: pacienteIds } } },
+          {
+            $group: {
+              _id: null,
+              totalAcertos: { $sum: "$resumo_metricas.total_acertos" },
+            },
+          },
+        ]),
+        experimentos_fase2.aggregate([
+          {
+            $match: {
+              client_id: { $in: pacienteIds.map((id) => id.toString()) },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalAcertos: { $sum: "$acertos" },
+            },
+          },
+        ]),
+        EstatisticasFase3.aggregate([
+          { $match: { usuario_id: { $in: pacienteIds } } },
+          {
+            $group: {
+              _id: null,
+              totalAcertos: { $sum: "$resumo_metricas.total_acertos" },
+            },
+          },
+        ]),
+      ]);
+
+      const totalAcertos =
+        (acertosFase1[0]?.totalAcertos || 0) +
+        (acertosFase2[0]?.totalAcertos || 0) +
+        (acertosFase3[0]?.totalAcertos || 0);
+
+      resultado[idade] = {
+        totalAcertos,
+        totalPacientes: idadeData.totalPacientes,
+      };
+    }
 
     return idadesAlvo.map((idade) => ({
       idade,
-      mediaAcertos: counts[idade]
-        ? Number((sums[idade] / counts[idade]).toFixed(2))
+      mediaAcertos: resultado[idade]
+        ? Number(
+            (
+              resultado[idade].totalAcertos / resultado[idade].totalPacientes
+            ).toFixed(2),
+          )
         : 0,
     }));
   }
@@ -291,14 +325,9 @@ class RelatorioService {
     const metricas = await this.buscarMetricasPaciente(paciente._id);
     const dadosComparativos = await this.buscarMediasPorIdade();
 
-    const anoAtual = new Date().getFullYear();
-    const anoNascimento = new Date(paciente.data_nascimento).getFullYear();
-    const idadePacienteAtual = anoAtual - anoNascimento;
-
     return {
       idPaciente: paciente._id,
       nomePaciente: paciente.nome ?? "",
-      idade: idadePacienteAtual,
       dataAvaliacaoPaciente: paciente.data_avaliacao ?? "",
       sexo: paciente.sexo ?? "",
       escolaridade: paciente.escolaridade ?? "",
@@ -319,3 +348,4 @@ class RelatorioService {
 }
 
 export default new RelatorioService();
+export { formatarVariabilidadeTemporal };

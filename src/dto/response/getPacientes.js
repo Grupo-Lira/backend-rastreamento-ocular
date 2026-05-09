@@ -5,6 +5,35 @@ const getPacienteResponseDto = async (paciente) => {
     return null;
   }
 
+  const hoje = new Date();
+  const dataNascimento = paciente.data_nascimento;
+
+  let dataParseada = new Date(dataNascimento);
+
+  if (isNaN(dataParseada.getTime())) {
+    const partes = dataNascimento.split("/");
+    if (partes.length === 3) {
+      const dia = parseInt(partes[0], 10);
+      const mes = parseInt(partes[1], 10) - 1;
+      const ano = parseInt(partes[2], 10);
+      dataParseada = new Date(ano, mes, dia);
+    }
+  }
+
+  let idade = hoje.getFullYear() - dataParseada.getFullYear();
+
+  const mesAtual = hoje.getMonth();
+  const diaAtual = hoje.getDate();
+  const mesNascimento = dataParseada.getMonth();
+  const diaNascimento = dataParseada.getDate();
+
+  if (
+    mesAtual < mesNascimento ||
+    (mesAtual === mesNascimento && diaAtual < diaNascimento)
+  ) {
+    idade--;
+  }
+
   const pacienteDto = {
     id: paciente._id,
     nome: paciente.nome,
@@ -27,13 +56,15 @@ const getPacienteResponseDto = async (paciente) => {
         ? `${(metricas.tempoReacaoMs / 1000).toFixed(2)}s`
         : null,
       variabilidadeTemporalRespostas:
-        metricas.variabilidadeTemporalRespostasMs && metricas.tempoReacaoMs
-          ? `${((metricas.variabilidadeTemporalRespostasMs / metricas.tempoReacaoMs) * 100).toFixed(2)}%`
-          : null,
+        relatorioService.formatarVariabilidadeTemporal(
+          metricas.variabilidadeTemporalRespostasMs,
+          metricas.tempoReacaoMs,
+        ),
       acertos: metricas.acertos,
       errosOmissao: metricas.errosOmissao,
       errosComissao: metricas.errosComissao,
       dadosComparativos: dadosComparativos,
+      idade: idade,
     };
   }
 
