@@ -1,0 +1,7 @@
+
+
+
+
+tempo_reacao_medio_ms,tempo_reacao_desvio_ms,total_acertos,total_comissao,total_omissao,taxa_acerto,label
+120,30,45,2,3,0.9,1
+300,120,10,15,25,0.25,0
