@@ -4,16 +4,16 @@ import {
   getPacienteResponseDto,
   getPacientesResponseDto,
 } from "../../dto/response/getPacientes.js";
-import {
-  getById,
-  create,
-  deleteById,
-  updateById,
-  getall,
-} from "../service/pacienteService.js";
 import ExperimentosFase1 from "../../models/ExperimentosFase1.js";
 import ExperimentosFase2 from "../../models/ExperimentosFase2.js";
 import ExperimentosFase3 from "../../models/ExperimentosFase3.js";
+import {
+  create,
+  deleteById,
+  getall,
+  getById,
+  updateById,
+} from "../service/pacienteService.js";
 
 const verificarFasesCompletas = async (pacienteId) => {
   try {
@@ -51,7 +51,8 @@ const createPacienteHandler = async (req, res) => {
 const getAllPacientesHandler = async (req, res) => {
   try {
     const pacientes = await getall(req.user.id);
-    return res.status(200).json({ data: getPacientesResponseDto(pacientes) });
+    const pacientesDto = await getPacientesResponseDto(pacientes);
+    return res.status(200).json({ data: pacientesDto });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
@@ -60,7 +61,9 @@ const getAllPacientesHandler = async (req, res) => {
 const getPacienteHandler = async (req, res) => {
   try {
     const paciente = await getById(req.user.id, req.params.id);
-    return res.status(200).json({ data: getPacienteResponseDto(paciente) });
+    return res
+      .status(200)
+      .json({ data: await getPacienteResponseDto(paciente) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
@@ -73,14 +76,18 @@ const updatePacienteHandler = async (req, res) => {
     if (dadosDto.observacoes !== undefined) {
       const fasesCompletas = await verificarFasesCompletas(req.params.id);
       if (!fasesCompletas) {
-        const err = new Error("Observações só podem ser adicionadas após a conclusão das 3 fases.");
+        const err = new Error(
+          "Observações só podem ser adicionadas após a conclusão das 3 fases.",
+        );
         err.status = 403;
         throw err;
       }
     }
 
     const paciente = await updateById(req.user.id, req.params.id, dadosDto);
-    return res.status(200).json({ data: getPacienteResponseDto(paciente) });
+    return res
+      .status(200)
+      .json({ data: await getPacienteResponseDto(paciente) });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message });
   }
@@ -96,10 +103,10 @@ const deletePacienteHandler = async (req, res) => {
 };
 
 export {
-  getPacienteHandler,
   createPacienteHandler,
   deletePacienteHandler,
-  updatePacienteHandler,
-  getAllPacientesHandler
+  getAllPacientesHandler,
+  getPacienteHandler,
+  updatePacienteHandler
 };
 

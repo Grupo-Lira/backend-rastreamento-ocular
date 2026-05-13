@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import {
   DWELL_REQUIRED_MS,
   clearAlvosFase1,
@@ -12,7 +13,6 @@ import {
   salvarEstadoExperimentoHistoricoFase1,
   updateEstadoExperimentoFase1,
 } from "../../database/redis/redisHandlers.js";
-import mongoose from "mongoose";
 import EstatisticasFase1 from "../../models/EstatisticasFase1.js";
 import ExperimentosFase1 from "../../models/ExperimentosFase1.js";
 import { MOTIVO_TEMPO_ESGOTADO } from "../../utils/constantes.js";
@@ -55,7 +55,9 @@ const analisarAlvoFase1 = (resultado, historico) => {
     })
     .sort((a, b) => toTimestamp(a?.timestamp) - toTimestamp(b?.timestamp));
 
-  const primeiroFoco = eventosDoAlvo.find((evento) => Boolean(evento?.is_focando));
+  const primeiroFoco = eventosDoAlvo.find((evento) =>
+    Boolean(evento?.is_focando),
+  );
   const tempoReacaoMs = primeiroFoco
     ? Math.max(0, toTimestamp(primeiroFoco.timestamp) - inicioMs)
     : null;
@@ -112,7 +114,11 @@ const analisarAlvoFase1 = (resultado, historico) => {
   let resultadoFinal = "ACERTO";
   if (!primeiroFoco || resultado?.motivo_termino === MOTIVO_TEMPO_ESGOTADO) {
     resultadoFinal = "OMISSAO";
-  } else if (!concluiuDuracaoMinima || houveQuebraFoco || desvioMaximoMs > DWELL_REQUIRED_MS) {
+  } else if (
+    !concluiuDuracaoMinima ||
+    houveQuebraFoco ||
+    desvioMaximoMs > DWELL_REQUIRED_MS
+  ) {
     resultadoFinal = "COMISSAO";
   }
 
@@ -156,9 +162,13 @@ const gerarEstatisticasFase1 = async (expId) => {
   const resumoMetricas = {
     tempo_reacao_medio_ms: trMedio,
     tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
-    total_acertos: analisePorAlvo.filter((item) => item.resultado === "ACERTO").length,
-    total_comissao: analisePorAlvo.filter((item) => item.resultado === "COMISSAO").length,
-    total_omissao: analisePorAlvo.filter((item) => item.resultado === "OMISSAO").length,
+    total_acertos: analisePorAlvo.filter((item) => item.resultado === "ACERTO")
+      .length,
+    total_comissao: analisePorAlvo.filter(
+      (item) => item.resultado === "COMISSAO",
+    ).length,
+    total_omissao: analisePorAlvo.filter((item) => item.resultado === "OMISSAO")
+      .length,
   };
 
   const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
@@ -241,7 +251,11 @@ const finalizarFocoAlvo = async (
     }
 
     socket.emit("fase_concluida", {
+      fase: 1,
       metricas: estatisticas?.resumo_metricas ?? {},
+      acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+      erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+      erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
     });
     await finalizarFase1(expId, currDate, motivoTermino);
 
