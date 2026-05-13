@@ -31,7 +31,8 @@ const analisePorAlvoSchema = new mongoose.Schema(
 const estatisticasFase3 = new mongoose.Schema(
   {
     usuario_id: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Usuario",
       required: true,
     },
     experimento_id: {
@@ -40,6 +41,7 @@ const estatisticasFase3 = new mongoose.Schema(
       required: true,
     },
     analise_por_alvo: [analisePorAlvoSchema],
+    variabilidade_temporal_respostas_ms: Number,
     resumo_metricas: estatisticasResumoSchema,
     timestamp_analise: { type: Date, default: Date.now },
   },

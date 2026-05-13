@@ -49,11 +49,11 @@ const create = async (usuarioId, dados = {}) => {
     doutor_id: usuarioId,
     nome: dados.nome,
     rg: dados.rg,
+    motivo_avaliacao: dados.motivo_avaliacao,
     data_nascimento: dados.data_nascimento,
     data_avaliacao: dados.data_avaliacao,
     sexo: dados.sexo,
     escolaridade: dados.escolaridade,
-    observacoes: dados.observacoes,
   });
 
   await Usuarios.findByIdAndUpdate(usuarioId, {
@@ -64,11 +64,13 @@ const create = async (usuarioId, dados = {}) => {
 };
 
 const getall = async (usuarioId) => {
-  await getDoutor(usuarioId);
+  const doutor = await getDoutor(usuarioId);
 
-  return Pacientes.find({ doutor_id: usuarioId })
+  const pacientes = await Pacientes.find({ doutor_id: usuarioId })
     .sort({ criado_em: -1 })
     .lean();
+
+  return pacientes;
 };
 
 const getById = async (usuarioId, id) => {
@@ -172,5 +174,5 @@ const deleteById = async (usuarioId, id) => {
   return paciente;
 };
 
-export { create, deleteById, getall, getById, getDoutor, updateById };
+export { create, deleteById, getById, getDoutor, getall, updateById };
 

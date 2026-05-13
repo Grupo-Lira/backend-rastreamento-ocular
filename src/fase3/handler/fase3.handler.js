@@ -59,16 +59,6 @@ export function registrarFase3Handlers(socket) {
       fase: 3,
       alvo: proximoAlvo?.nome ?? proximoNomeAlvo,
     });
-
-    console.log(
-      [
-        "\n================= FASE 3 | ALTERNANCIA DE ALVO =================",
-        `Cliente: ${socket.data.usuarioId} | ExpId: ${expId}`,
-        `Motivo: ${motivo} | Horario: ${new Date(currDate).toISOString()}`,
-        `Alvo: ${alvoAnterior} -> ${proximoNomeAlvo}`,
-        "=================================================================",
-      ].join("\n"),
-    );
   };
 
   socket.on("iniciar_fase3", async (config) => {
@@ -123,16 +113,12 @@ export function registrarFase3Handlers(socket) {
   socket.on("gaze_data_fase3", async (data) => {
     const currDate = Date.now();
 
-    // console.debug(
-    //   `Gaze data recebido do cliente ${socket.data.usuarioId}:`,
-    //   data.x,
-    //   data.y,
-    //   `Timestamp: ${data.timestamp}`,
-    // );
     console.debug(
       `Gaze data recebido do cliente ${socket.data.usuarioId}:`,
       data,
     );
+    const usuarioId = socket.data.usuarioId;
+
     try {
       if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {
         return;
@@ -174,20 +160,12 @@ export function registrarFase3Handlers(socket) {
         y >= alvo.y_min &&
         y <= alvo.y_max;
 
-      console.log(
-        alvo.x_min,
-        alvo.x_max,
-        alvo.y_min,
-        alvo.y_max,
-        `x = ${x} | y = ${y} | Focando: ${estaFocando}`,
-      );
-
       let tipoEvento = "INDETERMINADO";
       if (estaFocando) {
         if (estado.focoConsecutivo === 0) {
           // focoConsecutivo guarda qunatas vezes o usuario olhou pro alvo
           console.debug(
-            `Cliente ${socket.data.usuarioId} começou a focar no alvo ${estado.nomeAlvoAtual} pela primeira vez.`,
+            `Cliente ${usuarioId} começou a focar no alvo ${estado.nomeAlvoAtual} pela primeira vez.`,
           );
           tipoEvento = "FOCANDO";
 
@@ -197,7 +175,7 @@ export function registrarFase3Handlers(socket) {
           estado.foraConsecutivo = 0;
 
           console.debug(
-            `INICIANDO FOCO - Cliente ${socket.data.usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+            `INICIANDO FOCO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
           );
           // se a pessoa ficou 5s olhando pro alvo
         } else if (
@@ -205,7 +183,7 @@ export function registrarFase3Handlers(socket) {
           DWELL_REQUIRED_MS
         ) {
           console.debug(
-            `FOCO COMPLETO - Cliente ${socket.data.usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO FINALIZADO TIMESTAMP: ${currDate - estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+            `FOCO COMPLETO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO FINALIZADO TIMESTAMP: ${currDate - estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
           );
 
           tipoEvento = "FOCO_FINALIZADO";
@@ -213,7 +191,7 @@ export function registrarFase3Handlers(socket) {
           estado.ultimoFocoTs = currDate;
         } else {
           console.debug(
-            `FOCANDO - Cliente ${socket.data.usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCANDO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+            `FOCANDO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCANDO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
           );
 
           tipoEvento = "FOCANDO";
@@ -225,7 +203,7 @@ export function registrarFase3Handlers(socket) {
           estado.inicioFocoTs > 0 ? currDate - estado.inicioFocoTs : 0;
 
         console.debug(
-          `NÃO FOCOU - Cliente ${socket.data.usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${tempoDecorridoFocoMs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+          `NÃO FOCOU - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${tempoDecorridoFocoMs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
         );
 
         if (estado.inicioFocoTs > 0) {

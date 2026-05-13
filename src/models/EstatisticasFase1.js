@@ -38,10 +38,11 @@ const estatisticasFase1 = new mongoose.Schema(
       required: true,
     },
     analise_por_alvo: [analisePorAlvoSchema],
+    variabilidade_temporal_respostas_ms: Number,
     resumo_metricas: estatisticasResumoSchema,
     timestamp_analise: { type: Date, default: Date.now },
   },
-  { collection: "resultados_analise" },
+  { collection: "estatisticas_fase_1" },
 );
 
 const EstatisticasFase1 = mongoose.model(

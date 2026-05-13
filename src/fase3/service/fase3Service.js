@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import {
   DWELL_REQUIRED_MS,
   clearAlvosFase3,
@@ -141,7 +142,6 @@ const analisarAlvoFase3 = (resultado, historico) => {
   const concluiuFocoMinimo = focoMaximoMs >= DWELL_REQUIRED_MS;
   const houveQuebraFoco = eventosDoAlvo.length > 2; // mais de 2 eventos (foco-desvio-foco) indica que houve uma quebra de foco durante o alvo
 
-  
   const quantidadeComissaoEventos = eventosDoAlvo.filter(
     (evento) => evento?.tipo === "DESVIO_COMISSAO",
   ).length;
@@ -219,10 +219,13 @@ const gerarEstatisticasFase3 = async (expId) => {
     ),
   };
 
+  const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
+
   const estatisticasPayload = {
-    usuario_id: experimento.client_id,
+    usuario_id: usuarioId,
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
+    variabilidade_temporal_respostas_ms: trDesvioPadrao,
     resumo_metricas: resumoMetricas,
     timestamp_analise: new Date(),
   };
@@ -289,6 +292,9 @@ const finalizarFocoAlvoFase3 = async (
     socket.emit("fase_concluida", {
       fase: 3,
       metricas: estatisticas?.resumo_metricas ?? {},
+      acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+      erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+      erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
     });
 
     await finalizarFase3(expId);
@@ -311,6 +317,9 @@ const finalizarFocoAlvoFase3 = async (
       socket.emit("fase_concluida", {
         fase: 3,
         metricas: estatisticas?.resumo_metricas ?? {},
+        acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+        erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+        erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
       });
 
       await finalizarFase3(expId);

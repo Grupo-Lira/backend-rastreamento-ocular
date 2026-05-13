@@ -4,6 +4,7 @@ const getUsuarioResponseDto = (usuario) => {
   }
 
   return {
+    id: usuario._id,
     nome: usuario.nome,
     telefone: usuario.telefone,
     especialidade: usuario.especialidade,

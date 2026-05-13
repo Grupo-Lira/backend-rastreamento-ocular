@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 
 const UsuariosSchema = new mongoose.Schema(
   {
-    nome: { type: String, required: true },
-    telefone: { type: String, required: true },
-    especialidade: { type: String, required: true },
+    nome: { type: String, default: "" },
+    telefone: { type: String, default: "" },
+    especialidade: { type: String, default: "" },
     email: { type: String, required: true, unique: true, lowercase: true },
     senha: { type: String, required: true, select: false },
     role: {
