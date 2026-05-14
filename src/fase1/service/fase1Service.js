@@ -112,14 +112,17 @@ const analisarAlvoFase1 = (resultado, historico) => {
   const concluiuDuracaoMinima = focoMaximoMs >= DWELL_REQUIRED_MS;
 
   let resultadoFinal = "ACERTO";
-  if (!primeiroFoco || resultado?.motivo_termino === MOTIVO_TEMPO_ESGOTADO) {
+  // OMISSÃO: nunca focou (não encontrou primeiro foco)
+  if (!primeiroFoco) {
     resultadoFinal = "OMISSAO";
-  } else if (
-    !concluiuDuracaoMinima ||
-    houveQuebraFoco ||
-    desvioMaximoMs > DWELL_REQUIRED_MS
-  ) {
+  }
+  // COMISSÃO: focou mas não manteve por 5 segundos (DWELL_REQUIRED_MS)
+  else if (focoMaximoMs < DWELL_REQUIRED_MS) {
     resultadoFinal = "COMISSAO";
+  }
+  // ACERTO: focou e manteve por 5+ segundos
+  else {
+    resultadoFinal = "ACERTO";
   }
 
   return {
@@ -198,10 +201,8 @@ const gerarEstatisticasFase1 = async (expId) => {
       .length,
   };
 
-  const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
-
   const estatisticasPayload = {
-    usuario_id: usuarioId,
+    usuario_id: new mongoose.Types.ObjectId(String(experimento.client_id)),
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
     resumo_metricas: resumoMetricas,
@@ -277,15 +278,12 @@ const finalizarFocoAlvo = async (
       console.error("Erro ao gerar estatisticas da fase 1:", err);
     }
 
-    console.debug("Emitindo fase_concluida (fase 1):", payloadFaseConcluida);
-    
-    socket.emit("fase_concluida", {
+    const payloadFaseConcluida = {
       fase: 1,
       metricas: estatisticas?.resumo_metricas ?? {},
-      acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
-      erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
-      erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
-    });
+    };
+
+    socket.emit("fase_concluida", payloadFaseConcluida);
     await finalizarFase1(expId, currDate, motivoTermino);
 
     return;
