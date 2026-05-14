@@ -174,5 +174,5 @@ const deleteById = async (usuarioId, id) => {
   return paciente;
 };
 
-export { create, deleteById, getById, getDoutor, getall, updateById };
+export { create, deleteById, getall, getById, getDoutor, updateById };;
 
