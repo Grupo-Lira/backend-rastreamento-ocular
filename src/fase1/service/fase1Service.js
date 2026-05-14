@@ -148,9 +148,36 @@ const gerarEstatisticasFase1 = async (expId) => {
     ? experimento.historico_olhar
     : [];
 
-  const analisePorAlvo = resultadosAlvos.map((resultado) =>
-    analisarAlvoFase1(resultado, historicoOlhar),
-  );
+  const analisePorAlvo = resultadosAlvos.map((resultado) => {
+    const eventosDoAlvo = historicoOlhar
+      .filter((evento) => evento.alvo_indice === resultado.alvo_indice)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const temposFoco = eventosDoAlvo
+      .filter(
+        (evento) =>
+          evento.tipo === "FOCANDO" || evento.tipo === "FOCO_FINALIZADO",
+      )
+      .map((evento) => Number(new Date(evento.timestamp)));
+
+    const duracaoTotal =
+      Number(new Date(resultado.tempo_fim_alvo)) -
+      Number(new Date(resultado.tempo_inicio_alvo));
+
+    return {
+      alvo_indice: resultado.alvo_indice,
+      motivo_servidor: resultado.motivo_termino,
+      resultado:
+        resultado.motivo_termino === MOTIVO_TEMPO_ESGOTADO
+          ? "OMISSAO"
+          : "ACERTO",
+      tempo_reacao_ms: duracaoTotal,
+      foco_maximo_ms: 0,
+      desvio_maximo_ms: 0,
+      tempo_total_focado_ms: temposFoco.length > 0 ? duracaoTotal : 0,
+      duracao_total_alvo_ms: duracaoTotal,
+    };
+  });
 
   const temposReacao = analisePorAlvo
     .map((item) => item.tempo_reacao_ms)
@@ -250,6 +277,8 @@ const finalizarFocoAlvo = async (
       console.error("Erro ao gerar estatisticas da fase 1:", err);
     }
 
+    console.debug("Emitindo fase_concluida (fase 1):", payloadFaseConcluida);
+    
     socket.emit("fase_concluida", {
       fase: 1,
       metricas: estatisticas?.resumo_metricas ?? {},
@@ -576,6 +605,5 @@ export {
   iniciarDestaqueEstrela,
   salvarAlvosFase1Redis,
   salvarExperimentoFase1,
-  salvarExperimentoFase1Redis
+  salvarExperimentoFase1Redis,
 };
-
