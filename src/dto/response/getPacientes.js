@@ -9,29 +9,32 @@ const getPacienteResponseDto = async (paciente) => {
   const dataNascimento = paciente.data_nascimento;
 
   let dataParseada = new Date(dataNascimento);
+  let idade = 0;
 
-  if (isNaN(dataParseada.getTime())) {
-    const partes = dataNascimento.split("/");
-    if (partes.length === 3) {
-      const dia = parseInt(partes[0], 10);
-      const mes = parseInt(partes[1], 10) - 1;
-      const ano = parseInt(partes[2], 10);
-      dataParseada = new Date(ano, mes, dia);
+  if (dataNascimento) {
+    if (isNaN(dataParseada.getTime())) {
+      const partes = dataNascimento.split("/");
+      if (partes.length === 3) {
+        const dia = parseInt(partes[0], 10);
+        const mes = parseInt(partes[1], 10) - 1;
+        const ano = parseInt(partes[2], 10);
+        dataParseada = new Date(ano, mes, dia);
+      }
     }
-  }
 
-  let idade = hoje.getFullYear() - dataParseada.getFullYear();
+    idade = hoje.getFullYear() - dataParseada.getFullYear();
 
-  const mesAtual = hoje.getMonth();
-  const diaAtual = hoje.getDate();
-  const mesNascimento = dataParseada.getMonth();
-  const diaNascimento = dataParseada.getDate();
+    const mesAtual = hoje.getMonth();
+    const diaAtual = hoje.getDate();
+    const mesNascimento = dataParseada.getMonth();
+    const diaNascimento = dataParseada.getDate();
 
-  if (
-    mesAtual < mesNascimento ||
-    (mesAtual === mesNascimento && diaAtual < diaNascimento)
-  ) {
-    idade--;
+    if (
+      mesAtual < mesNascimento ||
+      (mesAtual === mesNascimento && diaAtual < diaNascimento)
+    ) {
+      idade--;
+    }
   }
 
   const pacienteDto = {
@@ -75,18 +78,20 @@ const getPacientesResponseDto = async (pacientes = []) => {
   if (!Array.isArray(pacientes)) {
     return [];
   }
-  try {
-    const pacientesDto = [];
-    for (const paciente of pacientes) {
-      const pacienteDto = await getPacienteResponseDto(paciente);
-      pacientesDto.push(pacienteDto);
-    }
 
-    return pacientesDto;
-  } catch (error) {
-    console.error("Erro em getPacientesResponseDto:", error);
-    return [];
+  const pacientesDto = [];
+  for (const paciente of pacientes) {
+    try {
+      const pacienteDto = await getPacienteResponseDto(paciente);
+      if (pacienteDto) {
+        pacientesDto.push(pacienteDto);
+      }
+    } catch (error) {
+    }
   }
+
+  return pacientesDto;
 };
 
 export { getPacienteResponseDto, getPacientesResponseDto };
+
