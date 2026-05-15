@@ -1,7 +1,9 @@
-
-
-
-
-tempo_reacao_medio_ms,tempo_reacao_desvio_ms,total_acertos,total_comissao,total_omissao,taxa_acerto,label
-120,30,45,2,3,0.9,1
-300,120,10,15,25,0.25,0
+client_id,phase1_tempo_reacao_medio_ms,phase1_tempo_reacao_desvio_padrao_ms,phase1_total_acertos,phase1_total_comissao,phase1_total_omissao,phase1_taxa_acerto,phase2_acertos,phase2_planetas_vistos,phase2_planetas_ignorados,phase2_taxa_acerto,phase3_tempo_reacao_medio_ms,phase3_tempo_reacao_desvio_padrao_ms,phase3_total_acertos,phase3_total_comissao,phase3_total_omissao,phase3_taxa_acerto,combined_score,label
+u001,120,25,9,1,0,0.9,3,3,0,1.0,110,22,10,0,0,1.0,0.9182,1
+u002,150,30,8,1,0,0.8889,3,3,0,1.0,130,28,9,1,0,0.9,0.8600,1
+u003,180,40,7,2,0,0.7778,2,3,1,0.6667,160,35,8,1,0,0.8889,0.7569,1
+u004,100,20,10,0,0,1.0,3,3,0,1.0,95,18,10,0,0,1.0,0.9654,1
+u005,420,160,2,6,7,0.1333,0,1,3,0.0,390,150,2,6,7,0.1333,0.1760,0
+u006,350,140,3,5,6,0.2143,1,2,2,0.3333,370,145,3,5,6,0.2143,0.2397,0
+u007,280,100,4,4,5,0.2667,1,1,2,0.3333,300,110,4,4,5,0.2667,0.3111,0
+u008,500,180,1,7,8,0.0625,0,0,4,0.0,480,170,1,7,8,0.0625,0.0812,0

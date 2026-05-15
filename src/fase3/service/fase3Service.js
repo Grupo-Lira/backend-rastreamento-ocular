@@ -13,6 +13,7 @@ import {
 } from "../../database/redis/redisHandlers.js";
 import EstatisticasFase3 from "../../models/EstatisticasFase3.js";
 import ExperimentosFase3 from "../../models/ExperimentosFase3.js";
+import { avaliarSessaoFinal } from "../../ai/avaliacaoFinalService.js";
 import {
   ALVO,
   ALVOS_FASE3,
@@ -141,7 +142,6 @@ const analisarAlvoFase3 = (resultado, historico) => {
   const concluiuFocoMinimo = focoMaximoMs >= DWELL_REQUIRED_MS;
   const houveQuebraFoco = eventosDoAlvo.length > 2; // mais de 2 eventos (foco-desvio-foco) indica que houve uma quebra de foco durante o alvo
 
-  
   const quantidadeComissaoEventos = eventosDoAlvo.filter(
     (evento) => evento?.tipo === "DESVIO_COMISSAO",
   ).length;
@@ -286,9 +286,22 @@ const finalizarFocoAlvoFase3 = async (
       console.error("Erro ao gerar estatisticas da fase 3:", err);
     }
 
+    let avaliacaoFinal = null;
+    try {
+      avaliacaoFinal = await avaliarSessaoFinal({
+        usuarioId: estatisticas?.usuario_id,
+        experimentoFase3Id: expId,
+        estatisticasFase3: estatisticas,
+      });
+    } catch (err) {
+      console.error("Erro ao avaliar desempenho final:", err);
+    }
+
     socket.emit("fase_concluida", {
       fase: 3,
       metricas: estatisticas?.resumo_metricas ?? {},
+      avaliacao_final: avaliacaoFinal?.avaliacao ?? null,
+      avaliacao_score: avaliacaoFinal?.score ?? null,
     });
 
     await finalizarFase3(expId);
@@ -308,9 +321,22 @@ const finalizarFocoAlvoFase3 = async (
         console.error("Erro ao gerar estatisticas da fase 3:", err);
       }
 
+      let avaliacaoFinal = null;
+      try {
+        avaliacaoFinal = await avaliarSessaoFinal({
+          usuarioId: estatisticas?.usuario_id,
+          experimentoFase3Id: expId,
+          estatisticasFase3: estatisticas,
+        });
+      } catch (err) {
+        console.error("Erro ao avaliar desempenho final:", err);
+      }
+
       socket.emit("fase_concluida", {
         fase: 3,
         metricas: estatisticas?.resumo_metricas ?? {},
+        avaliacao_final: avaliacaoFinal?.avaliacao ?? null,
+        avaliacao_score: avaliacaoFinal?.score ?? null,
       });
 
       await finalizarFase3(expId);
@@ -462,6 +488,5 @@ export {
   registrarTrocaAlvoFase3,
   salvarAlvosFase3Redis,
   salvarExperimentoFase3,
-  salvarExperimentoFase3Redis
+  salvarExperimentoFase3Redis,
 };
-
