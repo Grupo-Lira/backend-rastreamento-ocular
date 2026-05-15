@@ -38,7 +38,7 @@ export const getPlanetaNumero = (socket, planetaNumero, expId) => {
 
 // função que processa a seleção de um planeta na fase 2 (chamar no IOT)
 const processarSelecaoPlaneta = async (socket, planeta, expId) => {
-  const experimento = getExperimentoFase2Mongo(expId);
+  const experimento = await getExperimentoFase2Mongo(expId);
   if (!experimento) return;
 
   const rodadaKey =
