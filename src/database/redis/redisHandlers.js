@@ -117,8 +117,12 @@ export async function getAlvoFase1(expId) {
   const key = `exp:${expId}:alvos`;
 
   const data = await redis.get(key);
+  if (!data) {
+    return [];
+  }
+
   const json = JSON.parse(data);
-  return json;
+  return Array.isArray(json) ? json : [];
 }
 
 export async function getAlvoFase1ByIndice(expId, indice) {
@@ -156,6 +160,7 @@ export async function salvarEstadoExperimentoFase3(expId, nomeAlvoAtual) {
     inicioFocoTs: 0,
     ultimoFocoTs: 0,
     timestampInicio: currentDate,
+    finalizado: 0,
   });
 
   await redis.expire(stateKey, EXP_TTL);
@@ -174,6 +179,7 @@ export async function getEstadoExperimentoFase3ByExpId(expId) {
     inicioFocoTs: toNumber(estado.inicioFocoTs),
     ultimoFocoTs: toNumber(estado.ultimoFocoTs),
     timestampInicio: toNumber(estado.timestampInicio),
+    finalizado: toNumber(estado.finalizado),
   };
 }
 

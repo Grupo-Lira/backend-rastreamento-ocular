@@ -226,21 +226,28 @@ export const avaliarSessaoFinal = async ({
   experimentoFase3Id,
   estatisticasFase3,
 }) => {
-  if (!usuarioId || !experimentoFase3Id) {
+  const usuarioIdNormalizado =
+    usuarioId === undefined || usuarioId === null ? null : String(usuarioId);
+  const experimentoFase3IdNormalizado =
+    experimentoFase3Id === undefined || experimentoFase3Id === null
+      ? null
+      : String(experimentoFase3Id);
+
+  if (!usuarioIdNormalizado || !experimentoFase3IdNormalizado) {
     return null;
   }
 
   const [fase1, fase2, statsFase3] = await Promise.all([
-    ExperimentosFase1.findOne({ client_id: usuarioId })
+    ExperimentosFase1.findOne({ client_id: usuarioIdNormalizado })
       .sort({ data_hora: -1 })
       .lean(),
-    ExperimentosFase2.findOne({ client_id: usuarioId })
+    ExperimentosFase2.findOne({ client_id: usuarioIdNormalizado })
       .sort({ data_hora: -1 })
       .lean(),
     estatisticasFase3
       ? Promise.resolve(estatisticasFase3)
       : EstatisticasFase3.findOne({
-          experimento_id: experimentoFase3Id,
+          experimento_id: experimentoFase3IdNormalizado,
         }).lean(),
   ]);
 
@@ -255,10 +262,10 @@ export const avaliarSessaoFinal = async ({
   }
 
   const payload = {
-    usuario_id: usuarioId,
+    usuario_id: usuarioIdNormalizado,
     experimento_fase1_id: fase1?._id,
     experimento_fase2_id: fase2?._id,
-    experimento_fase3_id: experimentoFase3Id,
+    experimento_fase3_id: experimentoFase3IdNormalizado,
     avaliacao: mlResult.evaluation,
     score: mlResult.score,
     features,

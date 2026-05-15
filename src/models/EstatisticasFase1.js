@@ -4,6 +4,8 @@ const estatisticasResumoSchema = new mongoose.Schema(
   {
     tempo_reacao_medio_ms: Number,
     tempo_reacao_desvio_padrao_ms: Number,
+    total_alvos: Number,
+    total_alvos_exibidos: Number,
     total_acertos: Number,
     total_comissao: Number,
     total_omissao: Number,
@@ -38,10 +40,11 @@ const estatisticasFase1 = new mongoose.Schema(
       required: true,
     },
     analise_por_alvo: [analisePorAlvoSchema],
+    variabilidade_temporal_respostas_ms: Number,
     resumo_metricas: estatisticasResumoSchema,
     timestamp_analise: { type: Date, default: Date.now },
   },
-  { collection: "resultados_analise" },
+  { collection: "estatisticas_fase_1" },
 );
 
 const EstatisticasFase1 = mongoose.model(

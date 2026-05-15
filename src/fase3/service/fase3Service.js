@@ -69,109 +69,49 @@ const analisarAlvoFase3 = (resultado, historico) => {
     })
     .sort((a, b) => toTimestamp(a?.timestamp) - toTimestamp(b?.timestamp));
 
+  // compute focused time by summing focus periods within [inicioMs, fimMs]
   let tempoTotalFocadoMs = 0;
-  let focoMaximoMs = 0;
-  let desvioMaximoMs = 0;
-  let inicioBlocoFoco = null;
-  let inicioBlocoDesvio = inicioMs;
-  let estadoAtualFoco = false;
-  let ultimoTs = inicioMs;
+  let focoInicio = null;
+  let primeiroFocoTs = null;
 
   for (const evento of eventosDoAlvo) {
-    const eventoTs = toTimestamp(evento?.timestamp);
-
-    // Se estava focando antes deste evento, acumula o tempo focado até agora
-    if (estadoAtualFoco) {
-      tempoTotalFocadoMs += Math.max(0, eventoTs - ultimoTs);
-    }
-
-    const estaFocando = Boolean(evento?.is_focando);
-
-    //  desvio -> foco: inicia um bloco de foco e fecha o bloco de desvio
-    if (!estadoAtualFoco && estaFocando) {
-      inicioBlocoFoco = eventoTs;
-      if (inicioBlocoDesvio !== null) {
-        desvioMaximoMs = Math.max(desvioMaximoMs, eventoTs - inicioBlocoDesvio);
-        inicioBlocoDesvio = null;
+    const ts = toTimestamp(evento.timestamp);
+    const focando = Boolean(evento.is_focando);
+    if (focando) {
+      if (focoInicio === null) focoInicio = ts;
+      if (primeiroFocoTs === null) primeiroFocoTs = ts;
+    } else {
+      if (focoInicio !== null) {
+        tempoTotalFocadoMs += Math.max(0, ts - focoInicio);
+        focoInicio = null;
       }
     }
-
-    // foco -> desvio: finaliza o bloco de foco e inicia um bloco de desvio
-    if (estadoAtualFoco && !estaFocando) {
-      if (inicioBlocoFoco !== null) {
-        focoMaximoMs = Math.max(focoMaximoMs, eventoTs - inicioBlocoFoco);
-      }
-      inicioBlocoFoco = null;
-      inicioBlocoDesvio = eventoTs;
-    }
-
-    estadoAtualFoco = estaFocando;
-    ultimoTs = eventoTs;
   }
+  if (focoInicio !== null)
+    tempoTotalFocadoMs += Math.max(0, fimMs - focoInicio);
 
-  // se terminou focando, soma o ultimo evento ate o fim do alvo em tempoTotalFocadoms
-  if (estadoAtualFoco) {
-    tempoTotalFocadoMs += Math.max(0, fimMs - ultimoTs);
-    if (inicioBlocoFoco !== null) {
-      focoMaximoMs = Math.max(focoMaximoMs, fimMs - inicioBlocoFoco);
-    }
-    // se terminou desviando, calcula o desvio até o fim do alvo
-  } else if (inicioBlocoDesvio !== null) {
-    desvioMaximoMs = Math.max(desvioMaximoMs, fimMs - inicioBlocoDesvio);
-  }
-
-  // calcula tempo de reação
-  // busca o primeiro evento de foco
-  const primeiroFoco = eventosDoAlvo.find((evento) =>
-    Boolean(evento?.is_focando),
-  );
-  // se existir um evento de foco: tempo de reação = timestamp do primeiro foco - início do alvo
-  // se não existir evento de foco: tempo de reação = null
-  const tempoReacaoMs = primeiroFoco
-    ? Math.max(0, toTimestamp(primeiroFoco.timestamp) - inicioMs)
+  const tempoReacaoMs = primeiroFocoTs
+    ? Math.max(0, primeiroFocoTs - inicioMs)
     : null;
-
-  // calcula a duração total do alvo para analisar acertos e erros
   const duracaoTotalAlvoMs = Math.max(0, fimMs - inicioMs);
 
-  // calcula omissão ou comissão
-  const tempoOmissaoMaxMs = DWELL_REQUIRED_MS;
-  const focoNaoIniciado =
-    tempoReacaoMs === null || tempoReacaoMs > tempoOmissaoMaxMs;
-  const latenciaRetornoExcedida = desvioMaximoMs > tempoOmissaoMaxMs; // ela viu, mas demorou muito para voltar o foco para o alvo
-  const concluiuFocoMinimo = focoMaximoMs >= DWELL_REQUIRED_MS;
-  const houveQuebraFoco = eventosDoAlvo.length > 2; // mais de 2 eventos (foco-desvio-foco) indica que houve uma quebra de foco durante o alvo
-
-  const quantidadeComissaoEventos = eventosDoAlvo.filter(
-    (evento) => evento?.tipo === "DESVIO_COMISSAO",
-  ).length;
-  const quantidadeOmissaoEventos = eventosDoAlvo.filter(
-    (evento) => evento?.tipo === "DESVIO_OMISSAO",
-  ).length;
-
-  let resultadoFinal = RESULTADO_ACERTO;
-  if (focoNaoIniciado) {
-    resultadoFinal = RESULTADO_OMISSAO;
-  } else if (
-    latenciaRetornoExcedida ||
-    houveQuebraFoco ||
-    !concluiuFocoMinimo ||
-    resultado?.motivo_termino === MOTIVO_TROCA_ALVO
-  ) {
+  let resultadoFinal = RESULTADO_OMISSAO;
+  if (resultado?.motivo_termino === MOTIVO_TROCA_ALVO) {
+    resultadoFinal = RESULTADO_COMISSAO;
+  } else if (tempoTotalFocadoMs >= DWELL_REQUIRED_MS) {
+    resultadoFinal = RESULTADO_ACERTO;
+  } else if (tempoTotalFocadoMs > 0 || tempoReacaoMs !== null) {
     resultadoFinal = RESULTADO_COMISSAO;
   }
 
-  // objeto para salvar em analise_por_alvo
   return {
     nome_alvo: resultado?.nome_alvo,
     motivo_servidor: resultado?.motivo_termino,
     resultado: resultadoFinal,
     quantidade_acerto: resultadoFinal === RESULTADO_ACERTO ? 1 : 0,
-    quantidade_comissao: quantidadeComissaoEventos,
-    quantidade_omissao: quantidadeOmissaoEventos,
+    quantidade_comissao: resultadoFinal === RESULTADO_COMISSAO ? 1 : 0,
+    quantidade_omissao: resultadoFinal === RESULTADO_OMISSAO ? 1 : 0,
     tempo_reacao_ms: tempoReacaoMs,
-    foco_maximo_ms: focoMaximoMs,
-    desvio_maximo_ms: desvioMaximoMs,
     tempo_total_focado_ms: tempoTotalFocadoMs,
     duracao_total_alvo_ms: duracaoTotalAlvoMs,
   };
@@ -206,23 +146,26 @@ const gerarEstatisticasFase3 = async (expId) => {
     tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
     // acertos por alvo + ocorrencias de eventos de comissao/omissao
     total_acertos: analisePorAlvo.reduce(
-      (acc, item) => acc + item.quantidade_acerto,
+      (acc, item) => acc + (item.resultado === RESULTADO_ACERTO ? 1 : 0),
       0,
     ),
     total_comissao: analisePorAlvo.reduce(
-      (acc, item) => acc + item.quantidade_comissao,
+      (acc, item) => acc + (item.resultado === RESULTADO_COMISSAO ? 1 : 0),
       0,
     ),
     total_omissao: analisePorAlvo.reduce(
-      (acc, item) => acc + item.quantidade_omissao,
+      (acc, item) => acc + (item.resultado === RESULTADO_OMISSAO ? 1 : 0),
       0,
     ),
   };
 
+  const usuarioId = String(experimento.client_id);
+
   const estatisticasPayload = {
-    usuario_id: experimento.client_id,
+    usuario_id: usuarioId,
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
+    variabilidade_temporal_respostas_ms: trDesvioPadrao,
     resumo_metricas: resumoMetricas,
     timestamp_analise: new Date(),
   };
@@ -302,6 +245,9 @@ const finalizarFocoAlvoFase3 = async (
       metricas: estatisticas?.resumo_metricas ?? {},
       avaliacao_final: avaliacaoFinal?.avaliacao ?? null,
       avaliacao_score: avaliacaoFinal?.score ?? null,
+      acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+      erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+      erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
     });
 
     await finalizarFase3(expId);
@@ -337,6 +283,9 @@ const finalizarFocoAlvoFase3 = async (
         metricas: estatisticas?.resumo_metricas ?? {},
         avaliacao_final: avaliacaoFinal?.avaliacao ?? null,
         avaliacao_score: avaliacaoFinal?.score ?? null,
+        acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+        erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+        erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
       });
 
       await finalizarFase3(expId);
@@ -363,6 +312,34 @@ const finalizarFocoAlvoFase3 = async (
       alvoAtual: proximoAlvo?.nome ?? proximoNomeAlvo,
     };
   }
+};
+
+// registra resultado do alvo (ex.: foco completo) mas NÃO altera o alvo atual (sem alternância)
+const registrarFinalizacaoAlvoSemAlternancia = async (
+  expId,
+  estado,
+  motivoTermino,
+  currDate,
+) => {
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase3(expId);
+
+  await ExperimentosFase3.findByIdAndUpdate(
+    expId,
+    {
+      $push: {
+        resultados_alvos: {
+          nome_alvo: estado.nomeAlvoAtual,
+          motivo_termino: motivoTermino,
+          tempo_inicio_alvo: estado.timestampInicio,
+          tempo_fim_alvo: currDate,
+        },
+        historico_olhar: { $each: historicoOlhar },
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  await clearEstadoExperimentoHistoricoFase3(expId);
 };
 
 const registrarTrocaAlvoFase3 = async (expId, estado, currDate) => {
@@ -485,6 +462,7 @@ export {
   finalizarFocoAlvoFase3,
   incluirDadoHistoricoFase3Redis,
   iniciarDestaqueAlvo,
+  registrarFinalizacaoAlvoSemAlternancia,
   registrarTrocaAlvoFase3,
   salvarAlvosFase3Redis,
   salvarExperimentoFase3,
