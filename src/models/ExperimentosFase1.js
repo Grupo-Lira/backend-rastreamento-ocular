@@ -46,6 +46,7 @@ const ExperimentosFase1Schema = new mongoose.Schema(
   {
     client_id: { type: String, required: true },
     data_hora: { type: Date, default: Date.now },
+    total_alvos: { type: Number, default: 0 },
     historico_olhar: [historicoOlharSchema],
     resultados_alvos: [resultadoAlvoSchema],
   },

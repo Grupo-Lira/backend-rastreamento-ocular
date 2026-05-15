@@ -4,6 +4,8 @@ const estatisticasResumoSchema = new mongoose.Schema(
   {
     tempo_reacao_medio_ms: Number,
     tempo_reacao_desvio_padrao_ms: Number,
+    total_alvos: Number,
+    total_alvos_exibidos: Number,
     total_acertos: Number,
     total_comissao: Number,
     total_omissao: Number,

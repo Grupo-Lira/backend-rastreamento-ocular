@@ -117,8 +117,12 @@ export async function getAlvoFase1(expId) {
   const key = `exp:${expId}:alvos`;
 
   const data = await redis.get(key);
+  if (!data) {
+    return [];
+  }
+
   const json = JSON.parse(data);
-  return json;
+  return Array.isArray(json) ? json : [];
 }
 
 export async function getAlvoFase1ByIndice(expId, indice) {

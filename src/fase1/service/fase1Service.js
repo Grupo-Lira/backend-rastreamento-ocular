@@ -138,6 +138,18 @@ const analisarAlvoFase1 = (resultado, historico) => {
   };
 };
 
+const criarAnaliseOmissaoFase1 = (alvoIndice) => ({
+  alvo_indice: alvoIndice,
+  motivo_servidor: "NAO_EXIBIDO",
+  resultado: "OMISSAO",
+  tempo_reacao_ms: null,
+  foco_maximo_ms: 0,
+  desvio_maximo_ms: 0,
+  tempo_total_focado_ms: 0,
+  duracao_total_alvo_ms: 0,
+  concluiu_duracao_minima: false,
+});
+
 const gerarEstatisticasFase1 = async (expId) => {
   if (!expId) return null;
 
@@ -150,36 +162,27 @@ const gerarEstatisticasFase1 = async (expId) => {
   const historicoOlhar = Array.isArray(experimento.historico_olhar)
     ? experimento.historico_olhar
     : [];
+  const alvosConfigurados = await getAlvoFase1(expId);
+  const totalAlvosEsperados =
+    Number(experimento.total_alvos) ||
+    (Array.isArray(alvosConfigurados) ? alvosConfigurados.length : resultadosAlvos.length);
+  const totalAlvosExibidos = new Set(
+    resultadosAlvos.map((resultado) => Number(resultado.alvo_indice)),
+  ).size;
 
-  const analisePorAlvo = resultadosAlvos.map((resultado) => {
-    const eventosDoAlvo = historicoOlhar
-      .filter((evento) => evento.alvo_indice === resultado.alvo_indice)
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const resultadosPorIndice = new Map(
+    resultadosAlvos.map((resultado) => [Number(resultado.alvo_indice), resultado]),
+  );
 
-    const temposFoco = eventosDoAlvo
-      .filter(
-        (evento) =>
-          evento.tipo === "FOCANDO" || evento.tipo === "FOCO_FINALIZADO",
-      )
-      .map((evento) => Number(new Date(evento.timestamp)));
+  const analisePorAlvo = Array.from({ length: totalAlvosEsperados }, (_, index) => {
+    const alvoIndice = index + 1;
+    const resultado = resultadosPorIndice.get(alvoIndice);
 
-    const duracaoTotal =
-      Number(new Date(resultado.tempo_fim_alvo)) -
-      Number(new Date(resultado.tempo_inicio_alvo));
+    if (!resultado) {
+      return criarAnaliseOmissaoFase1(alvoIndice);
+    }
 
-    return {
-      alvo_indice: resultado.alvo_indice,
-      motivo_servidor: resultado.motivo_termino,
-      resultado:
-        resultado.motivo_termino === MOTIVO_TEMPO_ESGOTADO
-          ? "OMISSAO"
-          : "ACERTO",
-      tempo_reacao_ms: duracaoTotal,
-      foco_maximo_ms: 0,
-      desvio_maximo_ms: 0,
-      tempo_total_focado_ms: temposFoco.length > 0 ? duracaoTotal : 0,
-      duracao_total_alvo_ms: duracaoTotal,
-    };
+    return analisarAlvoFase1(resultado, historicoOlhar);
   });
 
   const temposReacao = analisePorAlvo
@@ -192,13 +195,14 @@ const gerarEstatisticasFase1 = async (expId) => {
   const resumoMetricas = {
     tempo_reacao_medio_ms: trMedio,
     tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
+    total_alvos: totalAlvosEsperados,
+    total_alvos_exibidos: totalAlvosExibidos,
     total_acertos: analisePorAlvo.filter((item) => item.resultado === "ACERTO")
       .length,
     total_comissao: analisePorAlvo.filter(
       (item) => item.resultado === "COMISSAO",
     ).length,
-    total_omissao: analisePorAlvo.filter((item) => item.resultado === "OMISSAO")
-      .length,
+    total_omissao: Math.max(0, totalAlvosEsperados - totalAlvosExibidos),
   };
 
   const estatisticasPayload = {
@@ -314,13 +318,14 @@ const finalizarFase1 = async (expId) => {
 };
 
 //mongoDB
-const salvarExperimentoFase1 = async (usuarioId) => {
+const salvarExperimentoFase1 = async (usuarioId, totalAlvos = 0) => {
   try {
     const experimentoFase1 = await ExperimentosFase1.create({
       client_id: usuarioId,
       fase: 1,
       status: EXPERIMENTO_STATUS_EM_EXECUCAO,
       data_hora: new Date(),
+      total_alvos: Number(totalAlvos) || 0,
       historico_olhar: [],
       resultados_alvos: [],
     });

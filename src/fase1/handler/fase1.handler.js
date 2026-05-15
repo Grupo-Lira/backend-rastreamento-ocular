@@ -26,7 +26,11 @@ export function registrarFase1Handlers(socket) {
     //TODO-VALIDAR-ALVOS-config.fase1
     //TODO-BUSCAR-AS-PROPERTIES-DO-BANCO-E-SALVAR-EM-CACHE(REDIS)
 
-    const experimento = await salvarExperimentoFase1(config.usuarioId); // ao iniciar, vai criar no mongo com campos vazios
+    const totalAlvosFase1 = Array.isArray(config.fase1) ? config.fase1.length : 0;
+    const experimento = await salvarExperimentoFase1(
+      config.usuarioId,
+      totalAlvosFase1,
+    ); // ao iniciar, vai criar no mongo com campos vazios
     await salvarExperimentoFase1Redis(experimento._id, 1); // faz o mesmo no redis 
     await salvarAlvosFase1Redis(experimento._id, config.fase1); // cria o alvo no redis 
 

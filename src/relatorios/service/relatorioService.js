@@ -28,6 +28,12 @@ const extrairResumoMetricas = (registro) => {
         ? resumo.tempo_reacao_medio_ms
         : null,
     variabilidadeTemporalRespostasMs: variabilidadeTemporalMs,
+    totalAlvos:
+      typeof resumo.total_alvos === "number" ? resumo.total_alvos : null,
+    totalAlvosExibidos:
+      typeof resumo.total_alvos_exibidos === "number"
+        ? resumo.total_alvos_exibidos
+        : null,
     acertos: Number(resumo.total_acertos ?? 0),
     errosOmissao: Number(resumo.total_omissao ?? 0),
     errosComissao: Number(resumo.total_comissao ?? 0),
