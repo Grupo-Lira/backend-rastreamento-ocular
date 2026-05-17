@@ -69,6 +69,8 @@ const getPacienteResponseDto = async (paciente) => {
       dadosComparativos: dadosComparativos,
       idade: idade,
     };
+  } else if (paciente.metricas) {
+    pacienteDto.metricas = paciente.metricas;
   }
 
   return pacienteDto;
@@ -86,12 +88,10 @@ const getPacientesResponseDto = async (pacientes = []) => {
       if (pacienteDto) {
         pacientesDto.push(pacienteDto);
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   return pacientesDto;
 };
 
 export { getPacienteResponseDto, getPacientesResponseDto };
-
