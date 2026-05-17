@@ -105,119 +105,118 @@ class TemplateManager {
   }
 
   gerarHtmlGrafico(metricas, pacienteData) {
-    if (
-      !metricas ||
-      !metricas.dadosComparativos ||
-      metricas.dadosComparativos.length === 0
-    )
-      return "";
+  if (!metricas || !metricas.dadosComparativos) return "";
 
-    console.log(
-      `[TEMPLATE] Idade recebida no gráfico: ${pacienteData.idade || metricas.idade || 0} anos`,
-    );
+  let dados = metricas.dadosComparativos;
+  if (!Array.isArray(dados)) {
+    dados = Object.entries(dados)
+      .map(([idade, valores]) => ({
+        idade: parseInt(idade, 10),
+        mediaAcertos: valores.acertosMedios || 0,
+      }))
+      .sort((a, b) => a.idade - b.idade);
+  }
 
-    const dados = metricas.dadosComparativos;
-    const acertosPaciente = metricas.acertos || 0;
-    const idadePaciente = pacienteData.idade || metricas.idade || 0;
+  if (dados.length === 0) return "";
 
-    const width = 200;
-    const height = 100;
-    const paddingY = 10;
-    const maxAcertos = Math.max(10, acertosPaciente);
-    const labelsY = [10, 8, 6, 4, 2, 0];
+  const acertosPaciente = metricas.acertos || 0;
+  const idadePaciente = pacienteData.idade || metricas.idade || 0;
 
-    const getX = (index) =>
-      20 + (index * (width - 40)) / (dados.length - 1 || 1);
-    const getY = (val) => {
-      const availableHeight = height - 2 * paddingY;
-      return height - paddingY - (val * availableHeight) / maxAcertos;
-    };
+  // --- CÁLCULOS DE ESCALA DINÂMICA ---
+  const todasMedias = dados.map(d => d.mediaAcertos);
+  // O teto do gráfico deve ser o maior entre (média máxima, acertos do paciente ou um mínimo de 10)
+  const valorMaximoReal = Math.max(...todasMedias, acertosPaciente, 10);
+  const maxAcertos = Math.ceil(valorMaximoReal / 2) * 2; // Arredonda para cima para número par
 
-    const points = dados
-      .map((d, i) => `${getX(i)},${getY(d.mediaAcertos)}`)
-      .join(" ");
-    const fillPath = `M ${getX(0)},${height} L ${points} L ${getX(dados.length - 1)},${height} Z`;
+  // Gerar labels do eixo Y dinamicamente (6 faixas)
+  const labelsY = [];
+  for (let i = 5; i >= 0; i--) {
+    labelsY.push(Math.round((maxAcertos / 5) * i));
+  }
+
+  const width = 300; // Aumentado para melhor resolução interna
+  const height = 150;
+  const paddingSide = 25;
+  const paddingTop = 30; // Espaço para o pin "VOCÊ" não cortar
+  const paddingBottom = 20;
+
+  const getX = (index) => paddingSide + (index * (width - 2 * paddingSide)) / (dados.length - 1 || 1);
+  const getY = (val) => {
+    const availableHeight = height - paddingTop - paddingBottom;
+    return height - paddingBottom - (val * availableHeight) / maxAcertos;
+  };
+
+  const points = dados.map((d, i) => `${getX(i)},${getY(d.mediaAcertos)}`).join(" ");
+    const fillPath = `M ${getX(0)},${height - paddingBottom} L ${points} L ${getX(dados.length - 1)},${height - paddingBottom} Z`;
 
     let indexPaciente = dados.findIndex((d) => d.idade === idadePaciente);
-    if (indexPaciente === -1) indexPaciente = Math.floor(dados.length / 2);
+    if (indexPaciente === -1) {
+      // Se não achar a idade exata, interpola a posição X
+      const idades = dados.map(d => d.idade);
+      const minIdade = Math.min(...idades);
+      const maxIdade = Math.max(...idades);
+      indexPaciente = (idadePaciente - minIdade) / (maxIdade - minIdade) * (dados.length - 1);
+    }
 
     const xVoce = getX(indexPaciente);
     const yVoce = getY(acertosPaciente);
 
     return `
-  <div class="chart-container" style="font-family: sans-serif; width: 100%; max-width: 600px; margin-top: 20px;">
-      <div class="chart-legend" style="display: flex; gap: 15px; margin-bottom: 20px; font-size: 11px;">
-          <div style="display: flex; align-items: center; gap: 5px;">
-            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #FF7A00;"></span>
-            Média por idade
-          </div>
-          <div style="display: flex; align-items: center; gap: 5px;">
-            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #00C48C;"></span>
-            Paciente atual (${acertosPaciente} acertos)
-          </div>
-      </div>
+    <div class="chart-container" style="font-family: 'Segoe UI', Tahoma, sans-serif; width: 100%; max-width: 550px; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="font-size: 11px; color: #1e293b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Desempenho Comparativo</div>
+            <div class="chart-legend" style="display: flex; gap: 12px; font-size: 10px; font-weight: 600;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 8px; height: 8px; border-radius: 2px; background: #FF7A00;"></span> Média
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 8px; height: 8px; border-radius: 2px; background: #00C48C;"></span> Paciente
+                </div>
+            </div>
+        </div>
 
-      <div style="font-size: 10px; color: #666; margin-bottom: 10px; font-weight: bold; text-transform: uppercase;">
-          Média de Acertos
-      </div>
+        <div style="display: flex; align-items: stretch; height: 200px;">
+            <div style="display: flex; flex-direction: column; justify-content: space-between; padding: ${paddingTop}px 8px ${paddingBottom}px 0; font-size: 10px; color: #94A3B8; text-align: right; width: 25px;">
+                ${labelsY.map((label) => `<span>${label}</span>`).join("")}
+            </div>
 
-      <div style="display: flex; align-items: stretch; height: 150px;">
-          <div style="display: flex; flex-direction: column; justify-content: space-between; padding: ${paddingY}px 10px ${paddingY}px 0; font-size: 11px; color: #94A3B8; text-align: right; width: 30px; line-height: 1;">
-              ${labelsY.map((label) => `<span>${label}</span>`).join("")}
-          </div>
+            <div style="flex-grow: 1; position: relative;">
+                <svg viewBox="0 0 ${width} ${height}" style="width: 100%; height: 100%; overflow: visible;">
+                    <defs>
+                        <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#FF7A00; stop-opacity:0.15" />
+                            <stop offset="100%" style="stop-color:#FF7A00; stop-opacity:0" />
+                        </linearGradient>
+                    </defs>
 
-          <div style="flex-grow: 1; position: relative; border-left: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;">
-              <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
-                  <defs>
-                      <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.2"/>
-                      </filter>
+                    ${labelsY.map(val => `
+                      <line x1="0" y1="${getY(val)}" x2="${width}" y2="${getY(val)}" stroke="#F1F5F9" stroke-width="1" />
+                    `).join("")}
 
-                      <linearGradient id="gradPreenchimento" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" style="stop-color:#FF7A00; stop-opacity:0.2" />
-                          <stop offset="100%" style="stop-color:#FF7A00; stop-opacity:0" />
-                      </linearGradient>
-                  </defs>
+                    <path d="${fillPath}" fill="url(#grad)" />
+                    <polyline points="${points}" fill="none" stroke="#FF7A00" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
 
-                  ${labelsY
-                    .map(
-                      (val) => `
-                    <line x1="0" y1="${getY(val)}" x2="${width}" y2="${getY(val)}" stroke="#F1F5F9" stroke-width="1" />
-                  `,
-                    )
-                    .join("")}
+                    ${dados.map((d, i) => `
+                      <circle cx="${getX(i)}" cy="${getY(d.mediaAcertos)}" r="3" fill="#fff" stroke="#FF7A00" stroke-width="1.5" />
+                    `).join("")}
 
-                  <path d="${fillPath}" fill="url(#gradPreenchimento)" />
-                  <polyline points="${points}" fill="none" stroke="#FF7A00" stroke-width="2" stroke-linejoin="round" />
+                    <g transform="translate(${xVoce}, ${yVoce})">
+                        <path d="M -15 -35 H 15 V -15 H 5 L 0 -8 L -5 -15 H -15 Z" fill="#00C48C" />
+                        <text x="0" y="-21" font-size="7" fill="white" text-anchor="middle" font-weight="900">VOCÊ</text>
+                        <circle cx="0" cy="0" r="5" fill="#00C48C" stroke="#fff" stroke-width="2" />
+                    </g>
+                </svg>
+            </div>
+        </div>
 
-                  ${dados
-                    .map(
-                      (d, i) => `
-                    <circle cx="${getX(i)}" cy="${getY(d.mediaAcertos)}" r="2.5" fill="#FF7A00" />
-                  `,
-                    )
-                    .join("")}
-
-                  <g transform="translate(${xVoce}, ${yVoce})" filter="url(#shadow)">
-                      <path d="M -5 -12 L 0 -6 L 5 -12 Z" fill="#00C48C" />
-                      <rect x="-18" y="-28" width="36" height="16" rx="8" fill="#00C48C" />
-                      <text x="0" y="-17" font-size="6.5" fill="white" text-anchor="middle" font-weight="800" style="letter-spacing: 0.5px;">VOCÊ</text>
-                      <circle cx="0" cy="0" r="5.5" fill="#00C48C" stroke="white" stroke-width="2" />
-                      <circle cx="0" cy="0" r="1.8" fill="white" />
-                  </g>
-              </svg>
-          </div>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; padding: 10px 20px 0 50px;">
-          ${dados.map((d) => `<span style="font-size: 11px; color: #94A3B8; font-weight: bold;">${d.idade}a</span>`).join("")}
-      </div>
-
-      <div style="text-align: right; margin-top: 10px; font-size: 10px; color: #666; font-weight: bold; text-transform: uppercase;">
-          Idade (anos)
-      </div>
-  </div>
-  `;
+        <div style="display: flex; justify-content: space-between; margin-left: 33px; padding-top: 10px; border-top: 1px solid #F1F5F9;">
+            ${dados.map((d) => `<span style="font-size: 10px; color: #64748b; font-weight: 700;">${d.idade}a</span>`).join("")}
+        </div>
+        <div style="text-align: center; margin-top: 8px; font-size: 9px; color: #94A3B8; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">
+            Faixa Etária (Anos)
+        </div>
+    </div>
+    `;
   }
 }
 
