@@ -10,6 +10,7 @@ import {
   buscarExperimentoFase3Redis,
   finalizarFase3,
   finalizarFocoAlvoFase3,
+  registrarFinalizacaoAlvoSemAlternancia,
   incluirDadoHistoricoFase3Redis,
   iniciarDestaqueAlvo,
   registrarTrocaAlvoFase3,
@@ -24,9 +25,20 @@ export function registrarFase3Handlers(socket) {
   // garante 1 único timer por cliente
   const limparTimerAlternancia = () => {
     if (socket.data.fase3Timer) {
-      clearInterval(socket.data.fase3Timer);
+      clearTimeout(socket.data.fase3Timer);
       socket.data.fase3Timer = null;
     }
+  };
+
+  const agendarProximaAlternancia = (delay = ALTERNANCIA_ALVO_MS) => {
+    limparTimerAlternancia();
+    socket.data.fase3Timer = setTimeout(async () => {
+      try {
+        await alternarAlvoFase3("TIMER");
+      } catch (err) {
+        console.error("Erro ao alternar alvo da fase 3 por timer:", err);
+      }
+    }, delay);
   };
 
   // muda o alvo quando der o tempo de 15s, ou quando o cliente pedir, e registra a troca no histórico do experimento
@@ -43,7 +55,17 @@ export function registrarFase3Handlers(socket) {
     const proximoNomeAlvo = ALVOS_FASE3[proximoIndice];
     const currDate = Date.now();
 
-    await registrarTrocaAlvoFase3(expId, estado, currDate);
+    // se alvo foi finalizado (acerto), grava o resultado com motivo de FOCO_COMPLETO
+    if (estado.finalizado) {
+      await registrarFinalizacaoAlvoSemAlternancia(
+        expId,
+        estado,
+        MOTIVO_FOCO_COMPLETO,
+        currDate,
+      );
+    } else {
+      await registrarTrocaAlvoFase3(expId, estado, currDate);
+    }
 
     estado.nomeAlvoAtual = proximoNomeAlvo;
     estado.focoConsecutivo = 0;
@@ -51,6 +73,7 @@ export function registrarFase3Handlers(socket) {
     estado.inicioFocoTs = 0;
     estado.ultimoFocoTs = 0;
     estado.timestampInicio = currDate;
+    estado.finalizado = 0;
 
     await atualizarEstadoExperimentoFase3Redis(expId, estado);
 
@@ -93,18 +116,15 @@ export function registrarFase3Handlers(socket) {
       alvo: alvoFase3.nome,
     });
 
-    socket.data.fase3Timer = setInterval(async () => {
-      try {
-        await alternarAlvoFase3("TIMER");
-      } catch (err) {
-        console.error("Erro ao alternar alvo da fase 3 por timer:", err);
-      }
-    }, ALTERNANCIA_ALVO_MS);
+    // agenda alternância relativa ao início do alvo atual
+    agendarProximaAlternancia();
   });
 
   socket.on("alternar_alvo_fase3", async () => {
     try {
       await alternarAlvoFase3("CLIENTE");
+      // ao alternar manualmente reinicia período de 15s
+      agendarProximaAlternancia();
     } catch (err) {
       console.error("Erro ao alternar alvo da fase 3:", err);
     }
@@ -239,18 +259,18 @@ export function registrarFase3Handlers(socket) {
       );
 
       if (tipoEvento === "FOCO_FINALIZADO") {
-        const resultadoFinalizacao = await finalizarFocoAlvoFase3(
+        // marca que alvo foi acertado; a gravação ocorre quando o alvo terminar (timer)
+        estado.finalizado = 1;
+        estado.resultadoAlvo = "ACERTO";
+        await atualizarEstadoExperimentoFase3Redis(
           socket.data.experimentoId,
           estado,
-          MOTIVO_FOCO_COMPLETO,
-          currDate,
-          socket,
         );
 
-        if (resultadoFinalizacao?.faseConcluida) {
-          socket.data.fase3Encerrada = true;
-          limparTimerAlternancia();
-        }
+        socket.emit("alvo_acertado", {
+          fase: 3,
+          alvo: alvoExibido,
+        });
       }
     } catch (err) {
       console.error("Erro ao processar dados de gaze da fase 3:", err);

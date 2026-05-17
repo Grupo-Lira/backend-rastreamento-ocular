@@ -165,25 +165,33 @@ const gerarEstatisticasFase1 = async (expId) => {
   const alvosConfigurados = await getAlvoFase1(expId);
   const totalAlvosEsperados =
     Number(experimento.total_alvos) ||
-    (Array.isArray(alvosConfigurados) ? alvosConfigurados.length : resultadosAlvos.length);
+    (Array.isArray(alvosConfigurados)
+      ? alvosConfigurados.length
+      : resultadosAlvos.length);
   const totalAlvosExibidos = new Set(
     resultadosAlvos.map((resultado) => Number(resultado.alvo_indice)),
   ).size;
 
   const resultadosPorIndice = new Map(
-    resultadosAlvos.map((resultado) => [Number(resultado.alvo_indice), resultado]),
+    resultadosAlvos.map((resultado) => [
+      Number(resultado.alvo_indice),
+      resultado,
+    ]),
   );
 
-  const analisePorAlvo = Array.from({ length: totalAlvosEsperados }, (_, index) => {
-    const alvoIndice = index + 1;
-    const resultado = resultadosPorIndice.get(alvoIndice);
+  const analisePorAlvo = Array.from(
+    { length: totalAlvosEsperados },
+    (_, index) => {
+      const alvoIndice = index + 1;
+      const resultado = resultadosPorIndice.get(alvoIndice);
 
-    if (!resultado) {
-      return criarAnaliseOmissaoFase1(alvoIndice);
-    }
+      if (!resultado) {
+        return criarAnaliseOmissaoFase1(alvoIndice);
+      }
 
-    return analisarAlvoFase1(resultado, historicoOlhar);
-  });
+      return analisarAlvoFase1(resultado, historicoOlhar);
+    },
+  );
 
   const temposReacao = analisePorAlvo
     .map((item) => item.tempo_reacao_ms)
@@ -263,9 +271,17 @@ const finalizarFocoAlvo = async (
 
   await clearEstadoExperimentoHistoricoFase1(expId); // limpa o histórico do olhar do redis para o próximo alvo
 
+  // buscar o objeto do alvo atual para enviar ao front (mesmo formato de `brilhar_estrela`)
+  let alvoObj = null;
+  try {
+    alvoObj = await getAlvoFase1ByIndice(expId, estado.alvoAtual);
+  } catch (err) {
+    console.debug("Erro ao buscar alvo para emitir alvo_fase1_concluido:", err);
+  }
+
   socket.emit("alvo_fase1_concluido", {
     fase: 1,
-    alvo: estado.alvoAtual,
+    alvo: alvoObj ?? estado.alvoAtual,
     motivo_termino: motivoTermino,
   });
 
@@ -608,5 +624,5 @@ export {
   iniciarDestaqueEstrela,
   salvarAlvosFase1Redis,
   salvarExperimentoFase1,
-  salvarExperimentoFase1Redis,
+  salvarExperimentoFase1Redis
 };
