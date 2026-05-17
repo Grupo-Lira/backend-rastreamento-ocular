@@ -5,133 +5,186 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Relatório do Paciente - {{NOME_PACIENTE}}</title>
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700&display=swap"
       rel="stylesheet"
     />
     <style>
       :root {
-        --primary-orange: #ff7a00;
-        --text-dark: #1a1a1a;
-        --text-muted: #64748b;
-        --border-light: #e2e8f0;
+        --primary-orange: #FF7A00; /* Laranja exato do seu design */
+        --bg-body: #110524;        /* Roxo extremamente escuro (fundo geral) */
+        --bg-container: #1A0B33;   /* Roxo escuro para a "folha" do relatório */
+        --bg-card: #251249;        /* Roxo médio para os cartões internos */
+        --border-light: #3D226A;   /* Bordas roxas discretas */
+        --text-main: #FFFFFF;      /* Texto principal em branco */
+        --text-muted: #94A3B8;     /* Texto secundário em cinza claro/azulado */
+      }
+
+      @page {
+        margin: 0; 
+        padding: 20mm;
+        size: A4;
       }
 
       body {
         font-family: "Inter", sans-serif;
         margin: 0;
         padding: 0;
-        background-color: white;
-        color: var(--text-dark);
+        background-color: var(--bg-body);
+        color: var(--text-main);
         line-height: 1.5;
+        /* Força a impressão das cores de fundo no gerador de PDF */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
 
+      /* Container que simula a folha de papel centralizada */
       .container {
-        max-width: 100%;
-        margin: 0;
-        background: white;
-        padding: 5px 20px 20px 20px;
-        border-radius: 0;
-        box-shadow: none;
+        width: 100%;
+        max-width: 210mm;
+        min-height: 297mm;
+        margin: 20px auto; 
+        background: var(--bg-container);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); 
+        border-radius: 16px;
+        box-sizing: border-box;
       }
 
-      .header {
+      /* Cabeçalho Superior */
+      .header-top {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 40px;
-      }
-
-      .patient-name {
-        color: var(--primary-orange);
-        font-size: 32px;
-        font-weight: 700;
-        margin: 0;
-      }
-
-      .eval-date {
-        font-size: 14px;
-        font-weight: 600;
-        margin-top: 8px;
+        align-items: center;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 20px;
+        margin-bottom: 30px;
       }
 
       .logo {
-        text-align: center;
         font-family: "Orbitron", sans-serif;
-        font-size: 32px;
+        font-size: 24px;
         font-weight: 700;
         color: var(--primary-orange);
-        letter-spacing: 4px;
-        text-transform: uppercase;
-        margin-bottom: 40px;
-        padding-bottom: 20px;
-        border-bottom: 2px solid var(--primary-orange);
+        letter-spacing: 2px;
+        margin: 0;
       }
 
-      .section-label {
-        color: var(--primary-orange);
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 4px;
+      .eval-badge {
+        background: var(--bg-card);
+        color: var(--text-main);
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--border-light);
+      }
+
+      /* Informações do Paciente */
+      .patient-header {
+        margin-bottom: 24px;
+      }
+
+      .patient-name {
+        font-size: 28px;
+        color: var(--text-main);
+        font-weight: 800;
+        margin: 0;
       }
 
       .info-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
-        margin-bottom: 32px;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .info-card {
+        background: var(--bg-card);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+      }
+
+      .section-label {
+        color: var(--text-muted);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
       }
 
       .info-value {
-        font-size: 15px;
-        color: var(--text-dark);
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 4px;
+        font-size: 14px;
+        color: var(--text-main);
+        font-weight: 600;
       }
 
-      .reason-section {
+      /* Motivo da Avaliação */
+      .reason-card {
+        background: var(--bg-card);
+        padding: 16px 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+        border-left: 4px solid var(--primary-orange);
         margin-bottom: 40px;
       }
 
       .reason-text {
         font-size: 14px;
-        color: var(--text-muted);
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 8px;
+        color: var(--text-main);
+        font-weight: 500;
+        margin-top: 4px;
       }
 
-      .metrics-section {
-        border: 2px solid var(--primary-orange);
-        border-radius: 40px;
-        padding: 40px;
-        margin-top: 20px;
-        background: #fff;
+      /* Seções Principais */
+      .card-section {
+        background: var(--bg-container);
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 30px;
+        margin-bottom: 30px;
       }
 
       .section-title {
-        text-align: center;
-        color: var(--primary-orange);
-        font-family: "Orbitron", sans-serif;
-        font-size: 24px;
-        letter-spacing: 4px;
-        margin-bottom: 40px;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--text-main);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
 
+      .section-title::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 16px;
+        background: var(--primary-orange);
+        border-radius: 2px;
+      }
+
+      /* Métricas que vêm do Backend */
       .metrics-grid {
         display: flex;
         justify-content: space-around;
         align-items: center;
         margin-bottom: 30px;
         text-align: center;
+        background: var(--bg-card);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
       }
 
       .metric-item-label {
         font-size: 11px;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--text-muted);
         text-transform: uppercase;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -139,126 +192,72 @@
       }
 
       .metric-item-value {
-        font-family: "Orbitron", sans-serif;
-        font-size: 24px;
-        color: #1a1a1a;
+        font-family: "Inter", sans-serif;
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--text-main);
       }
 
       .value-red {
-        color: #e10000;
-      }
-
-      .btn-obs-jogo {
-        display: block;
-        margin: 0 auto 40px;
-        background: #f1f5f9;
-        border: 1px solid #cbd5e1;
-        padding: 8px 20px;
-        border-radius: 12px;
-        font-size: 13px;
-        color: #475569;
+        color: #ef4444; /* Mantido o vermelho para alertas */
       }
 
       .details-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 50px;
-      }
-
-      .obs-section {
-        text-align: left;
+        gap: 40px;
       }
 
       .obs-title {
-        color: var(--primary-orange);
+        color: var(--text-muted);
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.5px;
         margin-bottom: 8px;
       }
 
       .obs-content {
-        font-size: 14px;
-        color: var(--text-muted);
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 8px;
+        font-size: 13px;
+        color: var(--text-main);
+        line-height: 1.6;
+        background: var(--bg-card);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
       }
 
+      /* Footer Fixo */
       .footer {
         position: fixed;
-        bottom: 0px;
-        left: 20px;
-        right: 20px;
-        padding-top: 20px;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 15px 50px;
         border-top: 1px solid var(--border-light);
         text-align: center;
         color: var(--text-muted);
-        font-size: 11px;
-        background: white;
+        font-size: 10px;
+        font-weight: 500;
+        background: var(--bg-container);
         z-index: 1000;
       }
 
-      .chart-container {
-        margin-bottom: 40px;
+      .footer p {
+        margin: 2px 0;
       }
 
-      .chart-legend {
-        display: flex;
-        justify-content: center;
-        gap: 20px;
-        margin-bottom: 20px;
-        font-size: 12px;
-      }
-
-      .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .dot-orange {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #ff7a00;
-      }
-
-      .dot-green {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #00c48c;
-      }
-
-      .chart-svg-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .y-axis-labels {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: 100px;
-        font-size: 10px;
-        color: var(--text-muted);
-      }
-
-      .x-axis-labels {
-        display: flex;
-        justify-content: space-around;
-        margin-top: 10px;
-        font-size: 10px;
-        color: var(--text-muted);
-      }
-
-      .label-main-x,
-      .label-main-y {
-        font-size: 11px;
-        color: var(--text-muted);
-        font-weight: 600;
+      /* Utilitários de Impressão */
+      @media print {
+        .container {
+          margin: 0;
+          box-shadow: none;
+          padding: 20px 30px;
+        }
+        .footer {
+          position: fixed;
+          bottom: 0px;
+        }
       }
 
       .page-break {
@@ -272,70 +271,66 @@
       .chart-section {
         page-break-before: always;
         page-break-inside: avoid;
+        padding-top: 20px;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="logo">FOCUSQUEST</div>
-
-      <div class="header">
-        <div>
-          <h1 class="patient-name">{{NOME_PACIENTE}}</h1>
-          <div class="eval-date">
-            Data da Avaliação: <strong>{{DATA_AVALIACAO}}</strong>
-          </div>
+      
+      <div class="header-top">
+        <h2 class="logo">FOCUSQUEST</h2>
+        <div class="eval-badge">
+          Avaliado em: {{DATA_AVALIACAO}}
         </div>
       </div>
 
+      <div class="patient-header">
+        <h1 class="patient-name">{{NOME_PACIENTE}}</h1>
+      </div>
+
       <div class="info-grid">
-        <div class="info-item">
+        <div class="info-card">
           <div class="section-label">Sexo</div>
           <div class="info-value">{{SEXO}}</div>
         </div>
-        <div class="info-item">
+        <div class="info-card">
           <div class="section-label">Escolaridade</div>
           <div class="info-value">{{ESCOLARIDADE}}</div>
         </div>
-        <div class="info-item">
-          <div class="section-label">Data de Nascimento</div>
+        <div class="info-card">
+          <div class="section-label">Data Nasc.</div>
           <div class="info-value">{{DATA_NASCIMENTO}}</div>
         </div>
       </div>
 
-      <div class="reason-section">
+      <div class="reason-card">
         <div class="section-label">Motivo da Avaliação</div>
         <div class="reason-text">{{MOTIVO_AVALIACAO}}</div>
       </div>
 
-      <div class="metrics-section no-break">
-        <div class="section-title">MÉTRICAS</div>
-
-        {{METRICAS_CONTENT}} {{OBSERVACOES_CONTENT}}
+      <div class="card-section no-break">
+        <div class="section-title">Métricas de Desempenho</div>
+        {{METRICAS_CONTENT}} 
+        {{OBSERVACOES_CONTENT}}
       </div>
 
       <div class="footer">
-        <p>Relatório gerado automaticamente por FocusQuest</p>
-        <p>
-          Este documento é confidencial e deve ser tratado de acordo com as
-          políticas de privacidade.
-        </p>
+        <p>Relatório gerado automaticamente por FocusQuest.</p>
+        <p>Este documento é confidencial e deve ser tratado de acordo com as políticas de privacidade.</p>
       </div>
 
       <div class="chart-section">
-        <div class="metrics-section">
-          <div class="section-title">ANÁLISE COMPARATIVA</div>
+        <div class="card-section" style="border: none; background: transparent; padding: 0;">
           {{DADOS_COMPARATIVOS_CONTENT}}
         </div>
 
         <div class="footer">
-          <p>Relatório gerado automaticamente por FocusQuest</p>
-          <p>
-            Este documento é confidencial e deve ser tratado de acordo com as
-            políticas de privacidade.
-          </p>
+          <p>Relatório gerado automaticamente por FocusQuest.</p>
+          <p>Este documento é confidencial e deve ser tratado de acordo com as políticas de privacidade.</p>
         </div>
       </div>
+      
     </div>
   </body>
 </html>
