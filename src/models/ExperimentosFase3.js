@@ -1,11 +1,15 @@
 import mongoose from "mongoose";
 
-// schemas criados no mongo 
+// histórico de cada olhar 
 const historicoOlharSchema = new mongoose.Schema(
   {
     is_focando: Boolean,
     timestamp: { type: Date, default: Date.now },
-    alvo_indice: Number,
+    nome_alvo: {
+      type: String, 
+      enum: ["ESTRELA", "RADAR"],
+      required: true,
+    },
     olhar_coord: {
       x: { type: Number, required: true },
       y: { type: Number, required: true },
@@ -22,17 +26,26 @@ const historicoOlharSchema = new mongoose.Schema(
       ],
       default: "INDETERMINADO",
     },
+    lado_tela: {
+      type: String,
+      enum: ["ESQUERDO", "DIREITO"],
+      required: false,
+    },
   },
   { _id: false },
 );
 
-// resultadoAlvoSchema registra o resultado de cada alvo apresentado, incluindo o motivo do término (focou ou tempo esgotado) e os timestamps de início e fim do alvo
+// resultado de cada alvo apresentado
 const resultadoAlvoSchema = new mongoose.Schema(
   {
-    alvo_indice: Number,
+    nome_alvo: {
+      type: String, 
+      enum: ["ESTRELA", "RADAR"],
+      required: true,
+    },
     motivo_termino: {
       type: String,
-      enum: ["FOCOU", "TEMPO"],
+      enum: ["FOCOU", "TEMPO", "TROCA"],
       required: true,
     },
     tempo_inicio_alvo: { type: Date, default: Date.now },
@@ -42,19 +55,18 @@ const resultadoAlvoSchema = new mongoose.Schema(
 );
 
 // experimentos são nada mais nada menos que um histórico de dados de olhar + resultados dos alvos para cada cliente
-const ExperimentosFase1Schema = new mongoose.Schema(
+const ExperimentosFase3Schema = new mongoose.Schema(
   {
     client_id: { type: String, required: true },
     data_hora: { type: Date, default: Date.now },
-    total_alvos: { type: Number, default: 0 },
     historico_olhar: [historicoOlharSchema],
     resultados_alvos: [resultadoAlvoSchema],
   },
-  { collection: "experimentos_fase_1" },
+  { collection: "experimentos_fase_3" },
 );
 
-const ExperimentosFase1 = mongoose.model(
-  "ExperimentosFase1",
-  ExperimentosFase1Schema,
+const ExperimentosFase3 = mongoose.model(
+  "ExperimentosFase3",
+  ExperimentosFase3Schema,
 );
-export default ExperimentosFase1;
+export default ExperimentosFase3;

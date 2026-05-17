@@ -1,95 +1,438 @@
-// FASE 3: Atenção Dividida
-const iniciar_fase3 = () => {
-  const estado = estados_clientes.get(socket.id);
-  if (!estado) return;
+import mongoose from "mongoose";
+import {
+  DWELL_REQUIRED_MS,
+  clearAlvosFase3,
+  clearEstadoExperimentoFase3,
+  clearEstadoExperimentoHistoricoFase3,
+  getAlvoFase3ByNome,
+  getEstadoExperimentoFase3ByExpId,
+  getEstadoExperimentoHistoricoFase3,
+  salvarAlvoFase3,
+  salvarEstadoExperimentoFase3,
+  salvarEstadoExperimentoHistoricoFase3,
+  updateEstadoExperimentoFase3,
+} from "../../database/redis/redisHandlers.js";
+import EstatisticasFase3 from "../../models/EstatisticasFase3.js";
+import ExperimentosFase3 from "../../models/ExperimentosFase3.js";
+import {
+  ALVO,
+  ALVOS_FASE3,
+  EXPERIMENTO_STATUS_EM_EXECUCAO,
+  LARGURA_TELA_PADRAO,
+  MOTIVO_FOCO_COMPLETO,
+  MOTIVO_TEMPO_ESGOTADO,
+  MOTIVO_TROCA_ALVO,
+} from "../../utils/constantes.js";
 
-  const config_fase3 = estado.config_alvos_fase3; // Usa as coordenadas recebidas do cliente
-  const alvos_atuais = config_fase3[estado.indice_alvos_fase3];
+const RESULTADO_ACERTO = "ACERTO";
+const RESULTADO_COMISSAO = "COMISSAO";
+const RESULTADO_OMISSAO = "OMISSAO";
 
-  // Verifica se todos os pares de alvos foram completados
-  if (!alvos_atuais) {
+const toTimestamp = (value) => {
+  const ts = value instanceof Date ? value.getTime() : Number(value);
+  return Number.isFinite(ts) ? ts : 0;
+};
+
+const calcularMediaDesvio = (valores) => {
+  if (!Array.isArray(valores) || valores.length === 0) {
+    return { media: 0, desvioPadrao: 0 };
+  }
+
+  const media = valores.reduce((acc, value) => acc + value, 0) / valores.length;
+  const variancia =
+    valores.reduce((acc, value) => acc + Math.pow(value - media, 2), 0) /
+    valores.length;
+
+  return {
+    media: Number(media.toFixed(2)),
+    desvioPadrao: Number(Math.sqrt(variancia).toFixed(2)),
+  };
+};
+
+// resultado: objeto com informações do resultado do alvo (incluindo motivo de término e timestamps)
+// historico: array de eventos de olhar registrados durante o experimento
+const analisarAlvoFase3 = (resultado, historico) => {
+  // início e fim do alvo
+  const inicioMs = toTimestamp(resultado?.tempo_inicio_alvo);
+  const fimMs = toTimestamp(resultado?.tempo_fim_alvo);
+
+  // filtra os eventos de olhar que correspondem ao alvo atual
+  const eventosDoAlvo = historico
+    .filter((evento) => {
+      const ts = toTimestamp(evento?.timestamp);
+      return (
+        String(evento?.nome_alvo ?? "").toUpperCase() ===
+          String(resultado?.nome_alvo ?? "").toUpperCase() &&
+        ts >= inicioMs &&
+        ts <= fimMs
+      );
+    })
+    .sort((a, b) => toTimestamp(a?.timestamp) - toTimestamp(b?.timestamp));
+
+  // compute focused time by summing focus periods within [inicioMs, fimMs]
+  let tempoTotalFocadoMs = 0;
+  let focoInicio = null;
+  let primeiroFocoTs = null;
+
+  for (const evento of eventosDoAlvo) {
+    const ts = toTimestamp(evento.timestamp);
+    const focando = Boolean(evento.is_focando);
+    if (focando) {
+      if (focoInicio === null) focoInicio = ts;
+      if (primeiroFocoTs === null) primeiroFocoTs = ts;
+    } else {
+      if (focoInicio !== null) {
+        tempoTotalFocadoMs += Math.max(0, ts - focoInicio);
+        focoInicio = null;
+      }
+    }
+  }
+  if (focoInicio !== null)
+    tempoTotalFocadoMs += Math.max(0, fimMs - focoInicio);
+
+  const tempoReacaoMs = primeiroFocoTs
+    ? Math.max(0, primeiroFocoTs - inicioMs)
+    : null;
+  const duracaoTotalAlvoMs = Math.max(0, fimMs - inicioMs);
+
+  let resultadoFinal = RESULTADO_OMISSAO;
+  if (tempoTotalFocadoMs >= DWELL_REQUIRED_MS)
+    resultadoFinal = RESULTADO_ACERTO;
+  else if (tempoTotalFocadoMs > 0) resultadoFinal = RESULTADO_COMISSAO;
+
+  return {
+    nome_alvo: resultado?.nome_alvo,
+    motivo_servidor: resultado?.motivo_termino,
+    resultado: resultadoFinal,
+    quantidade_acerto: resultadoFinal === RESULTADO_ACERTO ? 1 : 0,
+    quantidade_comissao: resultadoFinal === RESULTADO_COMISSAO ? 1 : 0,
+    quantidade_omissao: resultadoFinal === RESULTADO_OMISSAO ? 1 : 0,
+    tempo_reacao_ms: tempoReacaoMs,
+    tempo_total_focado_ms: tempoTotalFocadoMs,
+    duracao_total_alvo_ms: duracaoTotalAlvoMs,
+  };
+};
+
+const gerarEstatisticasFase3 = async (expId) => {
+  if (!expId) return null;
+
+  const experimento = await ExperimentosFase3.findById(expId).lean();
+  if (!experimento) return null;
+
+  const resultadosAlvos = Array.isArray(experimento.resultados_alvos)
+    ? experimento.resultados_alvos
+    : [];
+  const historicoOlhar = Array.isArray(experimento.historico_olhar)
+    ? experimento.historico_olhar
+    : [];
+
+  const analisePorAlvo = resultadosAlvos.map((resultado) =>
+    analisarAlvoFase3(resultado, historicoOlhar),
+  );
+
+  const temposReacao = analisePorAlvo
+    .map((item) => item.tempo_reacao_ms)
+    .filter((item) => Number.isFinite(item));
+
+  const { media: trMedio, desvioPadrao: trDesvioPadrao } =
+    calcularMediaDesvio(temposReacao);
+
+  const resumoMetricas = {
+    tempo_reacao_medio_ms: trMedio,
+    tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
+    // acertos por alvo + ocorrencias de eventos de comissao/omissao
+    total_acertos: analisePorAlvo.reduce(
+      (acc, item) => acc + (item.resultado === RESULTADO_ACERTO ? 1 : 0),
+      0,
+    ),
+    total_comissao: analisePorAlvo.reduce(
+      (acc, item) => acc + (item.resultado === RESULTADO_COMISSAO ? 1 : 0),
+      0,
+    ),
+    total_omissao: analisePorAlvo.reduce(
+      (acc, item) => acc + (item.resultado === RESULTADO_OMISSAO ? 1 : 0),
+      0,
+    ),
+  };
+
+  const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
+
+  const estatisticasPayload = {
+    usuario_id: usuarioId,
+    experimento_id: experimento._id,
+    analise_por_alvo: analisePorAlvo,
+    variabilidade_temporal_respostas_ms: trDesvioPadrao,
+    resumo_metricas: resumoMetricas,
+    timestamp_analise: new Date(),
+  };
+
+  const estatisticas = await EstatisticasFase3.findOneAndUpdate(
+    { experimento_id: experimento._id },
+    { $set: estatisticasPayload },
+    { upsert: true, returnDocument: "after" },
+  ).lean();
+
+  return estatisticas;
+};
+
+const iniciarDestaqueAlvo = async (expId) => {
+  const estado = await buscarExperimentoFase3Redis(expId);
+
+  const nomeAlvoAtual = estado?.nomeAlvoAtual;
+  const alvoAtual = await buscarAlvoFase3Redis(expId, nomeAlvoAtual);
+
+  return alvoAtual;
+};
+
+const finalizarFocoAlvoFase3 = async (
+  expId,
+  estado,
+  motivoTermino,
+  currDate,
+  socket,
+) => {
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase3(expId);
+
+  await ExperimentosFase3.findByIdAndUpdate(
+    expId,
+    {
+      $push: {
+        resultados_alvos: {
+          nome_alvo: estado.nomeAlvoAtual,
+          motivo_termino: motivoTermino,
+          tempo_inicio_alvo: estado.timestampInicio,
+          tempo_fim_alvo: currDate,
+        },
+        historico_olhar: { $each: historicoOlhar },
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  await clearEstadoExperimentoHistoricoFase3(expId);
+
+  socket.emit("alvo_fase3_concluido", {
+    fase: 3,
+    alvo: estado.nomeAlvoAtual,
+    motivo_termino: motivoTermino,
+  });
+
+  if (motivoTermino === MOTIVO_TEMPO_ESGOTADO) {
+    let estatisticas = null;
+    try {
+      estatisticas = await gerarEstatisticasFase3(expId);
+    } catch (err) {
+      console.error("Erro ao gerar estatisticas da fase 3:", err);
+    }
+
     socket.emit("fase_concluida", {
-      mensagem: "Fase 3 (Atenção Dividida) concluída.",
-      total_pares_alvos: config_fase3.length,
-      total_erros_omissao: estado.erros_omissao_fase3,
-      total_erros_desvio: estado.erros_desvio_foco_fase3,
-      metricas: calcular_desvio_padrao(estado.tempos_reacao_fase3),
+      fase: 3,
+      metricas: estatisticas?.resumo_metricas ?? {},
+      acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+      erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+      erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
     });
-    return;
+
+    await finalizarFase3(expId);
+    return { faseConcluida: true };
   }
 
-  // Reset do estado para novo par de alvos
-  if (estado.timer_fase) clearTimeout(estado.timer_fase);
-  estado.tempo_foco_inicio_fase = Date.now();
-  estado.tempo_primeiro_foco_estrela = null;
-  estado.tempo_primeiro_foco_radar = null;
-  estado.foco_iniciado_estrela = null;
-  estado.foco_iniciado_radar = null;
-  estado.foco_concluido_estrela = false;
-  estado.foco_concluido_radar = false;
+  // verifica se tem mais alvos para brilhar
+  if (motivoTermino === MOTIVO_FOCO_COMPLETO) {
+    const indiceAtual = ALVOS_FASE3.indexOf(estado.nomeAlvoAtual);
+    const proximoNomeAlvo = ALVOS_FASE3[indiceAtual + 1];
 
-  // Timer para erro de omissão
-  estado.timer_fase = setTimeout(() => {
-    estado.erros_omissao_fase3++;
-    finalizar_alvo_fase3(false);
-  }, tempo_maximo_alvo);
+    if (!proximoNomeAlvo) {
+      let estatisticas = null;
+      try {
+        estatisticas = await gerarEstatisticasFase3(expId);
+      } catch (err) {
+        console.error("Erro ao gerar estatisticas da fase 3:", err);
+      }
 
-  socket.emit("fase_iniciada", {
-    fase: 3,
-    alvos: alvos_atuais,
-    mensagem: `fase 3 (atenção dividida). par de alvos ${
-      estado.indice_alvos_fase3 + 1
-    } de ${config_fase3.length}. foque em ambos por 5s.`,
-  });
+      socket.emit("fase_concluida", {
+        fase: 3,
+        metricas: estatisticas?.resumo_metricas ?? {},
+        acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+        erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+        erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
+      });
+
+      await finalizarFase3(expId);
+      return { faseConcluida: true };
+    }
+
+    estado.nomeAlvoAtual = proximoNomeAlvo;
+    estado.focoConsecutivo = 0;
+    estado.foraConsecutivo = 0;
+    estado.inicioFocoTs = 0;
+    estado.ultimoFocoTs = 0;
+    estado.timestampInicio = currDate;
+
+    await atualizarEstadoExperimentoFase3Redis(expId, estado);
+
+    const proximoAlvo = await buscarAlvoFase3Redis(expId, proximoNomeAlvo);
+    socket.emit("brilhar_alvo_fase3", {
+      fase: 3,
+      alvo: proximoAlvo?.nome ?? proximoNomeAlvo,
+    });
+
+    return {
+      faseConcluida: false,
+      alvoAtual: proximoAlvo?.nome ?? proximoNomeAlvo,
+    };
+  }
 };
 
-const estado_inicial = {
-  // métricas da fase 3 (atenção dividida)
-  indice_alvos_fase3: 0, // serve para navegar pelos pares de alvos da fase 3
-  tempo_primeiro_foco_estrela: null,
-  tempo_primeiro_foco_radar: null,
-  foco_iniciado_estrela: null,
-  foco_iniciado_radar: null,
-  tempos_reacao_fase3: [], // array para armazenar tempos de reação combinados
-  erros_omissao_fase3: 0,
-  erros_desvio_foco_fase3: 0,
-  foco_concluido_estrela: false,
-  foco_concluido_radar: false,
+// registra resultado do alvo (ex.: foco completo) mas NÃO altera o alvo atual (sem alternância)
+const registrarFinalizacaoAlvoSemAlternancia = async (
+  expId,
+  estado,
+  motivoTermino,
+  currDate,
+) => {
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase3(expId);
+
+  await ExperimentosFase3.findByIdAndUpdate(
+    expId,
+    {
+      $push: {
+        resultados_alvos: {
+          nome_alvo: estado.nomeAlvoAtual,
+          motivo_termino: motivoTermino,
+          tempo_inicio_alvo: estado.timestampInicio,
+          tempo_fim_alvo: currDate,
+        },
+        historico_olhar: { $each: historicoOlhar },
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  await clearEstadoExperimentoHistoricoFase3(expId);
 };
 
-estados_clientes.set(socket.id, estado_inicial);
+const registrarTrocaAlvoFase3 = async (expId, estado, currDate) => {
+  const historicoOlhar = await getEstadoExperimentoHistoricoFase3(expId);
 
-// FASE 3 - Finaliza o par de alvos atual e passa para o próximo par
-const finalizar_alvos_fase3 = (sucesso = false) => {
-  const estado = estados_clientes.get(socket.id);
-  if (!estado || estado.fase_atual !== 3) return;
+  await ExperimentosFase3.findByIdAndUpdate(
+    expId,
+    {
+      $push: {
+        resultados_alvos: {
+          nome_alvo: estado.nomeAlvoAtual,
+          motivo_termino: MOTIVO_TROCA_ALVO,
+          tempo_inicio_alvo: estado.timestampInicio,
+          tempo_fim_alvo: currDate,
+        },
+        historico_olhar: { $each: historicoOlhar },
+      },
+    },
+    { returnDocument: "after" },
+  );
 
-  if (estado.timer_fase) clearTimeout(estado.timer_fase);
+  await clearEstadoExperimentoHistoricoFase3(expId);
+};
 
-  // registra o tempo de reação combinado (média entre os dois alvos)
-  if (
-    estado.tempo_primeiro_foco_estrela !== null &&
-    estado.tempo_primeiro_foco_radar !== null
-  ) {
-    const tempo_medio =
-      (estado.tempo_primeiro_foco_estrela + estado.tempo_primeiro_foco_radar) /
-      2;
-    estado.tempos_reacao_fase3.push(tempo_medio);
+const finalizarFase3 = async (expId) => {
+  if (!expId) return;
+
+  await Promise.all([
+    clearAlvosFase3(expId),
+    clearEstadoExperimentoFase3(expId),
+    clearEstadoExperimentoHistoricoFase3(expId),
+  ]);
+};
+
+const salvarExperimentoFase3 = async (usuarioId) => {
+  try {
+    const experimentoFase3 = await ExperimentosFase3.create({
+      client_id: usuarioId,
+      fase: 3,
+      status: EXPERIMENTO_STATUS_EM_EXECUCAO,
+      data_hora: new Date(),
+      historico_olhar: [],
+      resultados_alvos: [],
+    });
+
+    return experimentoFase3;
+  } catch (err) {
+    console.error("Erro ao salvar experimento fase 3:", err);
+    throw err;
+  }
+};
+
+const salvarExperimentoFase3Redis = async (
+  expId,
+  nomeAlvoInicial = ALVO.ESTRELA,
+) => {
+  await salvarEstadoExperimentoFase3(expId, nomeAlvoInicial);
+};
+
+const buscarExperimentoFase3Redis = async (experimentoFase3Id) => {
+  const estadoExperimentoFase3 =
+    await getEstadoExperimentoFase3ByExpId(experimentoFase3Id);
+  return estadoExperimentoFase3;
+};
+
+const atualizarEstadoExperimentoFase3Redis = async (expId, newEstado) => {
+  await updateEstadoExperimentoFase3(expId, newEstado);
+};
+
+const salvarAlvosFase3Redis = async (expId, alvos) => {
+  if (!Array.isArray(alvos) || alvos.length === 0) {
+    throw new Error("Lista de alvos da fase 3 inválida.");
   }
 
-  const metricas = calcular_desvio_padrao(estado.tempos_reacao_fase3);
+  // Enriquecer alvos com nome baseado na ordem esperada da fase 3
+  const alvosEnriquecidos = alvos.map((alvo, index) => ({
+    ...alvo,
+    nome: ALVOS_FASE3[index] || ALVO.ESTRELA,
+  }));
 
-  socket.emit("fase_atual_finalizada", {
-    fase: 3,
-    mensagem: "Fase 3 (atenção dividida) concluída.",
-    par_alvos_concluido: estado.indice_alvos_fase3 + 1,
-    sucesso: sucesso,
-    tempo_medio_reacao: metricas.media,
-    total_erros_omissao: estado.erros_omissao_fase3,
-    total_erros_desvio: estado.erros_desvio_foco_fase3,
-  });
-
-  // avança e inicia o próximo par de alvos
-  estado.indice_alvos_fase3++;
-  iniciar_fase3();
+  await salvarAlvoFase3(expId, alvosEnriquecidos);
 };
+
+const buscarAlvoFase3Redis = async (expId, nomeAlvo) => {
+  const alvo = await getAlvoFase3ByNome(expId, nomeAlvo);
+  return alvo;
+};
+
+const getLadoTela = (x, larguraTela = LARGURA_TELA_PADRAO) => {
+  const metadeTela = larguraTela / 2;
+  return x < metadeTela ? "ESQUERDO" : "DIREITO";
+};
+
+const incluirDadoHistoricoFase3Redis = async (
+  expId,
+  alvo,
+  currDate,
+  isFocando,
+  olharCoord,
+  tipoEvento,
+  larguraTela,
+) => {
+  const currentDadoOlhar = {
+    is_focando: isFocando,
+    timestamp: currDate,
+    nome_alvo: alvo.nome,
+    olhar_coord: olharCoord,
+    tipo: tipoEvento,
+    lado_tela: getLadoTela(olharCoord.x, larguraTela),
+  };
+
+  await salvarEstadoExperimentoHistoricoFase3(expId, currentDadoOlhar);
+};
+
+export {
+  atualizarEstadoExperimentoFase3Redis,
+  buscarAlvoFase3Redis,
+  buscarExperimentoFase3Redis,
+  finalizarFase3,
+  finalizarFocoAlvoFase3,
+  incluirDadoHistoricoFase3Redis,
+  iniciarDestaqueAlvo, registrarFinalizacaoAlvoSemAlternancia, registrarTrocaAlvoFase3, salvarAlvosFase3Redis,
+  salvarExperimentoFase3,
+  salvarExperimentoFase3Redis
+};
+

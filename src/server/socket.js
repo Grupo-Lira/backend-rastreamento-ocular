@@ -1,5 +1,6 @@
 import { registrarFase2Handlers } from "../fase2/handler/fase2.handler.js";
-import { registrarFase1Handlers } from "../fase_1/handler/fase1.handler.js";
+import { registrarFase1Handlers } from "../fase1/handler/fase1.handler.js";
+import {registrarFase3Handlers} from "../fase3/handler/fase3.handler.js";
 import { io } from "./server.js";
 
 io.on("connection", (socket) => {
@@ -7,6 +8,7 @@ io.on("connection", (socket) => {
 
   registrarFase1Handlers(socket);
   registrarFase2Handlers(socket);
+  registrarFase3Handlers(socket);
 
   socket.on("ping", () => {
     socket.emit("pong");

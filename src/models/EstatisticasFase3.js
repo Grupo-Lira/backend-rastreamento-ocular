@@ -4,8 +4,6 @@ const estatisticasResumoSchema = new mongoose.Schema(
   {
     tempo_reacao_medio_ms: Number,
     tempo_reacao_desvio_padrao_ms: Number,
-    total_alvos: Number,
-    total_alvos_exibidos: Number,
     total_acertos: Number,
     total_comissao: Number,
     total_omissao: Number,
@@ -15,9 +13,12 @@ const estatisticasResumoSchema = new mongoose.Schema(
 
 const analisePorAlvoSchema = new mongoose.Schema(
   {
-    alvo_indice: Number,
+    nome_alvo: String,
     motivo_servidor: String,
     resultado: String,
+    quantidade_acerto: Number,
+    quantidade_comissao: Number,
+    quantidade_omissao: Number,
     tempo_reacao_ms: Number,
     foco_maximo_ms: Number,
     desvio_maximo_ms: Number,
@@ -27,7 +28,7 @@ const analisePorAlvoSchema = new mongoose.Schema(
   { _id: false },
 );
 
-const estatisticasFase1 = new mongoose.Schema(
+const estatisticasFase3 = new mongoose.Schema(
   {
     usuario_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -36,7 +37,7 @@ const estatisticasFase1 = new mongoose.Schema(
     },
     experimento_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "ExperimentosFase1",
+      ref: "ExperimentosFase3",
       required: true,
     },
     analise_por_alvo: [analisePorAlvoSchema],
@@ -44,11 +45,11 @@ const estatisticasFase1 = new mongoose.Schema(
     resumo_metricas: estatisticasResumoSchema,
     timestamp_analise: { type: Date, default: Date.now },
   },
-  { collection: "estatisticas_fase_1" },
+  { collection: "estatisticas_fase_3" },
 );
 
-const EstatisticasFase1 = mongoose.model(
-  "estatisticas_fase1",
-  estatisticasFase1,
+const EstatisticasFase3 = mongoose.model(
+  "estatisticas_fase3",
+  estatisticasFase3,
 );
-export default EstatisticasFase1;
+export default EstatisticasFase3;

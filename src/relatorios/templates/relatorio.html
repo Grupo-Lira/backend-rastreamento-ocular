@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Relatório do Paciente - {{NOME_PACIENTE}}</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary-orange: #FF7A00; /* Laranja exato do seu design */
+        --bg-body: #110524;        /* Roxo extremamente escuro (fundo geral) */
+        --bg-container: #1A0B33;   /* Roxo escuro para a "folha" do relatório */
+        --bg-card: #251249;        /* Roxo médio para os cartões internos */
+        --border-light: #3D226A;   /* Bordas roxas discretas */
+        --text-main: #FFFFFF;      /* Texto principal em branco */
+        --text-muted: #94A3B8;     /* Texto secundário em cinza claro/azulado */
+      }
+
+      @page {
+        margin: 0; 
+        padding: 20mm;
+        size: A4;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-body);
+        color: var(--text-main);
+        line-height: 1.5;
+        /* Força a impressão das cores de fundo no gerador de PDF */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* Container que simula a folha de papel centralizada */
+      .container {
+        width: 100%;
+        max-width: 210mm;
+        min-height: 297mm;
+        margin: 20px auto; 
+        background: var(--bg-container);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); 
+        border-radius: 16px;
+        box-sizing: border-box;
+      }
+
+      /* Cabeçalho Superior */
+      .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 20px;
+        margin-bottom: 30px;
+      }
+
+      .logo {
+        font-family: "Orbitron", sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--primary-orange);
+        letter-spacing: 2px;
+        margin: 0;
+      }
+
+      .eval-badge {
+        background: var(--bg-card);
+        color: var(--text-main);
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--border-light);
+      }
+
+      /* Informações do Paciente */
+      .patient-header {
+        margin-bottom: 24px;
+      }
+
+      .patient-name {
+        font-size: 28px;
+        color: var(--text-main);
+        font-weight: 800;
+        margin: 0;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .info-card {
+        background: var(--bg-card);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+      }
+
+      .section-label {
+        color: var(--text-muted);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+
+      .info-value {
+        font-size: 14px;
+        color: var(--text-main);
+        font-weight: 600;
+      }
+
+      /* Motivo da Avaliação */
+      .reason-card {
+        background: var(--bg-card);
+        padding: 16px 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+        border-left: 4px solid var(--primary-orange);
+        margin-bottom: 40px;
+      }
+
+      .reason-text {
+        font-size: 14px;
+        color: var(--text-main);
+        font-weight: 500;
+        margin-top: 4px;
+      }
+
+      /* Seções Principais */
+      .card-section {
+        background: var(--bg-container);
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        padding: 30px;
+        margin-bottom: 30px;
+      }
+
+      .section-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--text-main);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section-title::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 16px;
+        background: var(--primary-orange);
+        border-radius: 2px;
+      }
+
+      /* Métricas que vêm do Backend */
+      .metrics-grid {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        margin-bottom: 30px;
+        text-align: center;
+        background: var(--bg-card);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+      }
+
+      .metric-item-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+      }
+
+      .metric-item-value {
+        font-family: "Inter", sans-serif;
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--text-main);
+      }
+
+      .value-red {
+        color: #ef4444; /* Mantido o vermelho para alertas */
+      }
+
+      .details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+      }
+
+      .obs-title {
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+
+      .obs-content {
+        font-size: 13px;
+        color: var(--text-main);
+        line-height: 1.6;
+        background: var(--bg-card);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border-light);
+      }
+
+      /* Footer Fixo */
+      .footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 15px 50px;
+        border-top: 1px solid var(--border-light);
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 10px;
+        font-weight: 500;
+        background: var(--bg-container);
+        z-index: 1000;
+      }
+
+      .footer p {
+        margin: 2px 0;
+      }
+
+      /* Utilitários de Impressão */
+      @media print {
+        .container {
+          margin: 0;
+          box-shadow: none;
+          padding: 20px 30px;
+        }
+        .footer {
+          position: fixed;
+          bottom: 0px;
+        }
+      }
+
+      .page-break {
+        page-break-before: always;
+      }
+
+      .no-break {
+        page-break-inside: avoid;
+      }
+
+      .chart-section {
+        page-break-before: always;
+        page-break-inside: avoid;
+        padding-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      
+      <div class="header-top">
+        <h2 class="logo">FOCUSQUEST</h2>
+        <div class="eval-badge">
+          Avaliado em: {{DATA_AVALIACAO}}
+        </div>
+      </div>
+
+      <div class="patient-header">
+        <h1 class="patient-name">{{NOME_PACIENTE}}</h1>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="section-label">Sexo</div>
+          <div class="info-value">{{SEXO}}</div>
+        </div>
+        <div class="info-card">
+          <div class="section-label">Escolaridade</div>
+          <div class="info-value">{{ESCOLARIDADE}}</div>
+        </div>
+        <div class="info-card">
+          <div class="section-label">Data Nasc.</div>
+          <div class="info-value">{{DATA_NASCIMENTO}}</div>
+        </div>
+      </div>
+
+      <div class="reason-card">
+        <div class="section-label">Motivo da Avaliação</div>
+        <div class="reason-text">{{MOTIVO_AVALIACAO}}</div>
+      </div>
+
+      <div class="card-section no-break">
+        <div class="section-title">Métricas de Desempenho</div>
+        {{METRICAS_CONTENT}} 
+        {{OBSERVACOES_CONTENT}}
+      </div>
+
+      <div class="footer">
+        <p>Relatório gerado automaticamente por FocusQuest.</p>
+        <p>Este documento é confidencial e deve ser tratado de acordo com as políticas de privacidade.</p>
+      </div>
+
+      <div class="chart-section">
+        <div class="card-section" style="border: none; background: transparent; padding: 0;">
+          {{DADOS_COMPARATIVOS_CONTENT}}
+        </div>
+
+        <div class="footer">
+          <p>Relatório gerado automaticamente por FocusQuest.</p>
+          <p>Este documento é confidencial e deve ser tratado de acordo com as políticas de privacidade.</p>
+        </div>
+      </div>
+      
+    </div>
+  </body>
+</html>
