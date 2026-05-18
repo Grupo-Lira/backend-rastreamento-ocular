@@ -9,7 +9,7 @@ async function connectMongo() {
     console.info("Conectado ao Banco de Dados MongoDB!");
   } catch (err) {
     console.error("Erro ao conectar ao MongoDB:", err);
-    process.exit(1);
+    throw err;
   }
 }
 
