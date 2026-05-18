@@ -29,12 +29,22 @@ uvicorn serve:app --host 0.0.0.0 --port 8000
 POST /predict
 {
   "data": {
-    "tempo_reacao_medio_ms": 120,
-    "tempo_reacao_desvio_ms": 30,
-    "total_acertos": 45,
-    "total_comissao": 2,
-    "total_omissao": 3,
-    "taxa_acerto": 0.9
+    "phase1_tempo_reacao_medio_ms": 120,
+    "phase1_tempo_reacao_desvio_padrao_ms": 25,
+    "phase1_total_acertos": 9,
+    "phase1_total_comissao": 1,
+    "phase1_total_omissao": 0,
+    "phase1_taxa_acerto": 0.9,
+    "phase2_acertos": 3,
+    "phase2_planetas_vistos": 3,
+    "phase2_planetas_ignorados": 0,
+    "phase2_taxa_acerto": 1.0,
+    "phase3_tempo_reacao_medio_ms": 110,
+    "phase3_tempo_reacao_desvio_padrao_ms": 22,
+    "phase3_total_acertos": 10,
+    "phase3_total_comissao": 0,
+    "phase3_total_omissao": 0,
+    "phase3_taxa_acerto": 1.0
   }
 }
 ```

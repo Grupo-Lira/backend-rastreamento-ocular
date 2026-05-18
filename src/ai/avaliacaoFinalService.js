@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import AvaliacaoFinal from "../models/AvaliacaoFinal.js";
 import EstatisticasFase3 from "../models/EstatisticasFase3.js";
 import ExperimentosFase1 from "../models/ExperimentosFase1.js";
@@ -194,6 +195,23 @@ const mergeFeatures = (phase1, phase2, phase3) => ({
   ...phase3,
 });
 
+const toObjectId = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (value instanceof mongoose.Types.ObjectId) {
+    return value;
+  }
+
+  const valueString = String(value);
+  if (!mongoose.isValidObjectId(valueString)) {
+    return null;
+  }
+
+  return new mongoose.Types.ObjectId(valueString);
+};
+
 const callMlService = async (features) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ML_SERVICE_TIMEOUT_MS);
@@ -237,6 +255,11 @@ export const avaliarSessaoFinal = async ({
     return null;
   }
 
+  const experimentoFase3ObjectId = toObjectId(experimentoFase3IdNormalizado);
+  if (!experimentoFase3ObjectId) {
+    return null;
+  }
+
   const [fase1, fase2, statsFase3] = await Promise.all([
     ExperimentosFase1.findOne({ client_id: usuarioIdNormalizado })
       .sort({ data_hora: -1 })
@@ -265,14 +288,14 @@ export const avaliarSessaoFinal = async ({
     usuario_id: usuarioIdNormalizado,
     experimento_fase1_id: fase1?._id,
     experimento_fase2_id: fase2?._id,
-    experimento_fase3_id: experimentoFase3IdNormalizado,
+    experimento_fase3_id: experimentoFase3ObjectId,
     avaliacao: mlResult.evaluation,
     score: mlResult.score,
     features,
   };
 
   const saved = await AvaliacaoFinal.findOneAndUpdate(
-    { experimento_fase3_id: experimentoFase3Id },
+    { experimento_fase3_id: experimentoFase3ObjectId },
     { $set: payload },
     { upsert: true, new: true },
   );
