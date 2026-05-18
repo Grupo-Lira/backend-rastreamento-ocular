@@ -46,6 +46,9 @@ backend/
 
 ## Como Executar
 
+### Projeto Hospedado na GCP:
+- Link: https://focusquest-frontend-kxhuw4rwka-uc.a.run.app/
+
 ### Modo rápido no monorepo
 
 Use este caminho quando quiser subir tudo em conjunto:
