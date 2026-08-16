@@ -67,9 +67,14 @@ npm install
 2. Ajuste as variáveis no arquivo `.env.development` conforme seu ambiente local.
 
 3. Garanta que MongoDB e Redis estejam disponíveis localmente.
+3.1 Pelo compose:
+```bash
+docker-compose up
+```
 
 4. Inicie o servidor:
 
+4.1 Manualmente:
 ```bash
 npm run dev
 ```
