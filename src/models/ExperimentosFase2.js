@@ -28,6 +28,11 @@ const ExperimentosFase2Schema = new mongoose.Schema(
       type: rodadaSchema,
       required: true,
     },
+    controle_jogo: {
+      type: String,
+      enum: ["CONTROLE_ARDUINO", "CONTROLE_MOUSE"],
+      default: "CONTROLE_MOUSE",
+    },
   },
   { collection: "experimentos_fase_2" },
 );
