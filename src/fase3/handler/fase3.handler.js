@@ -1,4 +1,4 @@
-import { DWELL_REQUIRED_MS } from "../../database/redis/redisHandlers.js";
+import { DWELL_REQUIRED_MS_FASE_3 } from "../../database/redis/redisHandlers.js";
 import {
   ALVOS_FASE3,
   MOTIVO_FOCO_COMPLETO,
@@ -10,16 +10,18 @@ import {
   buscarExperimentoFase3Redis,
   finalizarFase3,
   finalizarFocoAlvoFase3,
-  registrarFinalizacaoAlvoSemAlternancia,
   incluirDadoHistoricoFase3Redis,
   iniciarDestaqueAlvo,
+  pausarFase3Redis,
+  registrarFinalizacaoAlvoSemAlternancia,
   registrarTrocaAlvoFase3,
+  retomarFase3Redis,
   salvarAlvosFase3Redis,
   salvarExperimentoFase3,
   salvarExperimentoFase3Redis,
 } from "../service/fase3Service.js";
 
-const ALTERNANCIA_ALVO_MS = 15000;
+const ALTERNANCIA_ALVO_MS = 6000; // 6 segundos
 
 export function registrarFase3Handlers(socket) {
   // garante 1 único timer por cliente
@@ -28,27 +30,99 @@ export function registrarFase3Handlers(socket) {
       clearTimeout(socket.data.fase3Timer);
       socket.data.fase3Timer = null;
     }
+    socket.data.fase3TimerDeadlineEm = null;
+    socket.data.fase3TimerDelayMs = null;
   };
 
   const agendarProximaAlternancia = (delay = ALTERNANCIA_ALVO_MS) => {
     limparTimerAlternancia();
+    socket.data.fase3TimerDelayMs = delay;
+    socket.data.fase3TimerDeadlineEm = Date.now() + delay;
     socket.data.fase3Timer = setTimeout(async () => {
       try {
-        await alternarAlvoFase3("TIMER");
+        const alternou = await alternarAlvoFase3("TIMER");
+        if (alternou) {
+          agendarProximaAlternancia();
+        }
       } catch (err) {
         console.error("Erro ao alternar alvo da fase 3 por timer:", err);
       }
     }, delay);
   };
 
-  // muda o alvo quando der o tempo de 15s, ou quando o cliente pedir, e registra a troca no histórico do experimento
+  const pausarAlternanciaFase3 = async () => {
+    if (!socket.data.experimentoId) {
+      return null;
+    }
+
+    const estado = await buscarExperimentoFase3Redis(socket.data.experimentoId);
+
+    if (!estado || estado.pausado) {
+      return estado;
+    }
+
+    const agora = Date.now();
+    const deadline = socket.data.fase3TimerDeadlineEm ?? agora;
+    //timerRestanteMs é igual a Deadline(Data em que alvos iriam alternar, em milissegundos) - Agora(Data de Agora em Milissegundos).
+    const timerRestanteMs = Math.max(0, deadline - agora);
+
+    limparTimerAlternancia();
+    await pausarFase3Redis(socket.data.experimentoId, {
+      timerRestanteMs,
+      pausaIniciadaEm: agora,
+    });
+
+    socket.data.fase3Pausada = true;
+    socket.data.fase3TimerRestanteMs = timerRestanteMs;
+    socket.data.fase3TimerDeadlineEm = null;
+    socket.data.fase3TimerDelayMs = null
+
+    return { ...estado, pausado: 1, timerRestanteMs };
+  };
+
+  const retomarAlternanciaFase3 = async () => {
+    if (!socket.data.experimentoId || !socket.data.fase3Pronta) {
+      return null;
+    }
+
+    const estado = await buscarExperimentoFase3Redis(socket.data.experimentoId);
+
+    if (!estado || !estado.pausado) {
+      return estado;
+    }
+
+    const timerRestanteMs =
+      socket.data.fase3TimerRestanteMs ?? estado.timerRestanteMs ?? ALTERNANCIA_ALVO_MS;
+
+    await retomarFase3Redis(socket.data.experimentoId, {
+      timerRestanteMs: 0,
+      pausaIniciadaEm: 0,
+    });
+
+    socket.data.fase3Pausada = false;
+    socket.data.fase3TimerRestanteMs = null;
+
+    if (timerRestanteMs > 0) {
+      agendarProximaAlternancia(timerRestanteMs);
+    } else {
+      agendarProximaAlternancia();
+    }
+
+
+    return { ...estado, pausado: 0, timerRestanteMs: 0 };
+  };
+
+  // muda o alvo quando der o tempo, ou quando o cliente pedir, e registra a troca no histórico do experimento
   const alternarAlvoFase3 = async (motivo = "TIMER") => {
-    if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {
-      return;
+    if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {      return false;
     }
 
     const expId = socket.data.experimentoId;
     const estado = await buscarExperimentoFase3Redis(expId);
+
+    if (!estado || estado.pausado) {
+      return false;
+    }
     const indiceAtual = ALVOS_FASE3.indexOf(estado.nomeAlvoAtual);
     const alvoAnterior = estado.nomeAlvoAtual;
     const proximoIndice = (indiceAtual + 1) % ALVOS_FASE3.length;
@@ -78,10 +152,13 @@ export function registrarFase3Handlers(socket) {
     await atualizarEstadoExperimentoFase3Redis(expId, estado);
 
     const proximoAlvo = await buscarAlvoFase3Redis(expId, proximoNomeAlvo);
+    socket.data.fase3AlvoAtual = proximoAlvo?.nome ?? proximoNomeAlvo;
     socket.emit("brilhar_alvo_fase3", {
       fase: 3,
       alvo: proximoAlvo?.nome ?? proximoNomeAlvo,
     });
+
+    return true;
   };
 
   socket.on("iniciar_fase3", async (config) => {
@@ -90,10 +167,8 @@ export function registrarFase3Handlers(socket) {
     limparTimerAlternancia();
     socket.data.fase3Pronta = false;
     socket.data.fase3Encerrada = false;
-
-    //TODO-VALIDAR-USUARIO-config.usuarioId
-    //TODO-VALIDAR-ALVOS-config.fase1
-    //TODO-BUSCAR-AS-PROPERTIES-DO-BANCO-E-SALVAR-EM-CACHE(REDIS)
+    socket.data.fase3Pausada = false;
+    socket.data.fase3TimerRestanteMs = null;
 
     const experimento = await salvarExperimentoFase3(config.usuarioId); // ao iniciar, vai criar no mongo com campos vazios
     const expId = experimento._id.toString();
@@ -109,6 +184,7 @@ export function registrarFase3Handlers(socket) {
     await salvarAlvosFase3Redis(expId, config.fase3); // cria os alvos no redis
 
     const alvoFase3 = await iniciarDestaqueAlvo(expId);
+    socket.data.fase3AlvoAtual = alvoFase3?.nome ?? alvoInicial;
     socket.data.fase3Pronta = true;
 
     socket.emit("fase3_iniciada", {
@@ -120,11 +196,29 @@ export function registrarFase3Handlers(socket) {
     agendarProximaAlternancia();
   });
 
+  socket.on("fase_3_pause", async () => {
+    try {
+      await pausarAlternanciaFase3();
+    } catch (err) {
+      console.error("Erro ao pausar fase 3:", err);
+    }
+  });
+
+  socket.on("fase_3_resume", async () => {
+    try {
+      await retomarAlternanciaFase3();
+    } catch (err) {
+      console.error("Erro ao retomar fase 3:", err);
+    }
+  });
+
   socket.on("alternar_alvo_fase3", async () => {
     try {
-      await alternarAlvoFase3("CLIENTE");
-      // ao alternar manualmente reinicia período de 15s
-      agendarProximaAlternancia();
+      const alternou = await alternarAlvoFase3("CLIENTE");
+      if (alternou) {
+        // ao alternar manualmente reinicia período de 15s
+        agendarProximaAlternancia();
+      }
     } catch (err) {
       console.error("Erro ao alternar alvo da fase 3:", err);
     }
@@ -144,12 +238,22 @@ export function registrarFase3Handlers(socket) {
         return;
       }
 
+      if (!socket.data.experimentoId) {
+        return;
+      }
+
+      const estadoInicial = await buscarExperimentoFase3Redis(
+        socket.data.experimentoId,
+      );
+
+      if (estadoInicial?.pausado) {
+        return;
+      }
+
       const x = data?.x ?? 0;
       const y = data?.y ?? 0;
 
-      const estado = await buscarExperimentoFase3Redis(
-        socket.data.experimentoId,
-      );
+      const estado = estadoInicial;
 
       if (
         estado === null ||
@@ -195,15 +299,15 @@ export function registrarFase3Handlers(socket) {
           estado.foraConsecutivo = 0;
 
           console.debug(
-            `INICIANDO FOCO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+            `INICIANDO FOCO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS_FASE_3}ms`,
           );
           // se a pessoa ficou 5s olhando pro alvo
         } else if (
           estado.ultimoFocoTs - estado.inicioFocoTs >=
-          DWELL_REQUIRED_MS
+          DWELL_REQUIRED_MS_FASE_3
         ) {
           console.debug(
-            `FOCO COMPLETO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO FINALIZADO TIMESTAMP: ${currDate - estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+            `FOCO COMPLETO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO FINALIZADO TIMESTAMP: ${currDate - estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS_FASE_3}ms`,
           );
 
           tipoEvento = "FOCO_FINALIZADO";
@@ -211,7 +315,7 @@ export function registrarFase3Handlers(socket) {
           estado.ultimoFocoTs = currDate;
         } else {
           console.debug(
-            `FOCANDO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCANDO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+            `FOCANDO - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCANDO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS_FASE_3}ms`,
           );
 
           tipoEvento = "FOCANDO";
@@ -223,7 +327,7 @@ export function registrarFase3Handlers(socket) {
           estado.inicioFocoTs > 0 ? currDate - estado.inicioFocoTs : 0;
 
         console.debug(
-          `NÃO FOCOU - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${tempoDecorridoFocoMs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
+          `NÃO FOCOU - Cliente ${usuarioId} - Fase 3 - Alvo: ${alvoExibido} - FOCO INICIADO TIMESTAMP: ${tempoDecorridoFocoMs}ms - Mínimo: ${DWELL_REQUIRED_MS_FASE_3}ms`,
         );
 
         if (estado.inicioFocoTs > 0) {
@@ -266,19 +370,17 @@ export function registrarFase3Handlers(socket) {
           socket.data.experimentoId,
           estado,
         );
-
-        socket.emit("alvo_acertado", {
-          fase: 3,
-          alvo: alvoExibido,
-        });
       }
     } catch (err) {
       console.error("Erro ao processar dados de gaze da fase 3:", err);
     }
   });
 
+  //Fase 3 só acaba por tempo "excedido", ou seja, o contador chegou ao fim (0).
   socket.on("fase_3_tempo_excedido", async () => {
-    if (socket.data.fase3Encerrada) {
+    if (
+      socket.data.fase3Encerrada ||
+      !socket.data.experimentoId) {
       return;
     }
 

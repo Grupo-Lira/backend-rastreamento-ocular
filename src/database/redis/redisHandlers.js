@@ -8,6 +8,7 @@ function toNumber(value, defaultValue = 0) {
 
 export const EXP_TTL = 60 * 60; //1HORA
 export const DWELL_REQUIRED_MS = 5000; // 5 SEGUNDOS DE DWELL PARA CONSIDERAR FOCO COMPLETO
+export const DWELL_REQUIRED_MS_FASE_3 = 3000; // 3 SEGUNDOS DE DWELL PARA CONSIDERAR FOCO COMPLETO EM FASE 3
 
 //FASE 1
 //ESTADO ---
@@ -161,6 +162,9 @@ export async function salvarEstadoExperimentoFase3(expId, nomeAlvoAtual) {
     ultimoFocoTs: 0,
     timestampInicio: currentDate,
     finalizado: 0,
+    pausado: 0,
+    timerRestanteMs: 0,
+    pausaIniciadaEm: 0,
   });
 
   await redis.expire(stateKey, EXP_TTL);
@@ -180,6 +184,9 @@ export async function getEstadoExperimentoFase3ByExpId(expId) {
     ultimoFocoTs: toNumber(estado.ultimoFocoTs),
     timestampInicio: toNumber(estado.timestampInicio),
     finalizado: toNumber(estado.finalizado),
+    pausado: toNumber(estado.pausado),
+    timerRestanteMs: toNumber(estado.timerRestanteMs),
+    pausaIniciadaEm: toNumber(estado.pausaIniciadaEm),
   };
 }
 
