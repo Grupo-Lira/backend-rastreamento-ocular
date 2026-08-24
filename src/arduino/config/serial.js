@@ -33,11 +33,6 @@ function initArduino() {
     const data = raw.trim();
     console.debug(`Arduino -> ${data}`);
 
-    //TODO-VALIDAR-SE-O-TRECHO-COMENTADO-PRECISA-CONTINUAR-AQUI
-    //io.emit("arduino_event", { raw: data });
-    // if (data === "BUTTON_PRESSED") {
-    //   io.emit("arduino_button", { message: "BUTTON_PRESSED" });
-    // }
     arduinoEmitter.emit("data", data);
   });
 }
