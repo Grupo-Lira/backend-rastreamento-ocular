@@ -9,6 +9,10 @@ export const STATUS_RODADA1 = "RODADA1";
 export const STATUS_RODADA2 = "RODADA2";
 export const STATUS_FINALIZADO = "FINALIZADO";
 
+export const CONTROLE_ARDUINO = "CONTROLE_ARDUINO";
+export const CONTROLE_MOUSE = "CONTROLE_MOUSE";
+
+
 // FASE3
 export const ALVOS_FASE3 = ["ESTRELA", "RADAR"];
 
@@ -17,5 +21,5 @@ export const ALVO = {
   RADAR: "RADAR",
 };
 
-export const LARGURA_TELA_PADRAO = 1920; 
+export const LARGURA_TELA_PADRAO = 1920;
 export const MOTIVO_TROCA_ALVO = "TROCA";
