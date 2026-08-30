@@ -31,13 +31,13 @@ export function registrarFase1Handlers(socket) {
       config.usuarioId,
       totalAlvosFase1,
     ); // ao iniciar, vai criar no mongo com campos vazios
-    await salvarExperimentoFase1Redis(experimento._id, 1); // faz o mesmo no redis 
-    await salvarAlvosFase1Redis(experimento._id, config.fase1); // cria o alvo no redis 
+    await salvarExperimentoFase1Redis(experimento._id, 1); // faz o mesmo no redis
+    await salvarAlvosFase1Redis(experimento._id, config.fase1); // cria o alvo no redis
 
-    socket.data.experimentoId = experimento._id.toString(); // serve pra chamar o id do experimento e do usuario com o front 
+    socket.data.experimentoId = experimento._id.toString(); // serve pra chamar o id do experimento e do usuario com o front
     socket.data.usuarioId = config.usuarioId;
 
-    // ve o estado do experimento, ve a questao dos alvos e inicia a fase com a estrela brilhando, se ainda tiver alvo 
+    // ve o estado do experimento, ve a questao dos alvos e inicia a fase com a estrela brilhando, se ainda tiver alvo
     const alvoFase1 = await iniciarDestaqueEstrela(experimento._id.toString());
     socket.emit("fase1_iniciada", {
       fase: 1,
@@ -45,7 +45,7 @@ export function registrarFase1Handlers(socket) {
     });
   });
 
-  // socket para recebimento dos dados do olhar e construção dos dados no mongo 
+  // socket para recebimento dos dados do olhar e construção dos dados no mongo
   socket.on("gaze_data_fase1", async (data) => {
     const currDate = Date.now();
 
@@ -58,11 +58,11 @@ export function registrarFase1Handlers(socket) {
     const usuarioId = socket.data.usuarioId;
 
     try {
-      const x = data?.x ?? 0; 
+      const x = data?.x ?? 0;
       const y = data?.y ?? 0;
 
 
-      const estado = await buscarExperimentoFase1Redis(socket.data.experimentoId,); // ve como está o estado do experimento 
+      const estado = await buscarExperimentoFase1Redis(socket.data.experimentoId,); // ve como está o estado do experimento
 
       if (
         estado === null ||
@@ -83,17 +83,17 @@ export function registrarFase1Handlers(socket) {
         y >= alvo.y_min &&
         y <= alvo.y_max;
 
-      
-      let tipoEvento = "INDETERMINADO"; 
+
+      let tipoEvento = "INDETERMINADO";
       if (estaFocando) {
-        if (estado.focoConsecutivo === 0) { // focoConsecutivo guarda qunatas vezes o usuario olhou pro alvo 
+        if (estado.focoConsecutivo === 0) { // focoConsecutivo guarda qunatas vezes o usuario olhou pro alvo
           console.debug(
             `Cliente ${usuarioId} começou a focar no alvo ${estado.alvoAtual} pela primeira vez.`,
           );
           tipoEvento = "FOCANDO";
 
           estado.inicioFocoTs = currDate;
-          estado.focoConsecutivo += 1; // acumula a cada olhada 
+          estado.focoConsecutivo += 1; // acumula a cada olhada
           estado.ultimoFocoTs = currDate;
           estado.foraConsecutivo = 0;
 
@@ -131,10 +131,10 @@ export function registrarFase1Handlers(socket) {
 
           estado.inicioFocoTs = 0;
           estado.focoConsecutivo = 0;
-          estado.foraConsecutivo += 1; // acumula a cada olhada q for comissao 
-        } else if (estado.foraConsecutivo === 4) { // nao viu o alvo  
+          estado.foraConsecutivo += 1; // acumula a cada olhada q for comissao
+        } else if (estado.foraConsecutivo === 4) { // nao viu o alvo
           tipoEvento = "DESVIO_OMISSAO";
-          estado.foraConsecutivo += 1; // acumula a cada olhada de omissao 
+          estado.foraConsecutivo += 1; // acumula a cada olhada de omissao
         } else {
           tipoEvento = "DESFOCANDO";
           estado.foraConsecutivo += 1;
@@ -152,7 +152,7 @@ export function registrarFase1Handlers(socket) {
       );
 
       // ativado a cada mudanca de olhada, para atualizar o estado do experimento no redis, e quando tiver foco completo, finalizar o alvo e passar pro proximo
-      await atualizarEstadoExperimentoFase1Redis( 
+      await atualizarEstadoExperimentoFase1Redis(
         socket.data.experimentoId,
         estado,
       );
