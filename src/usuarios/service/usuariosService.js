@@ -73,8 +73,7 @@ const deleteById = async (id) => {
 };
 
 export {
-  getById,
-  updateById,
-  deleteById,
+  deleteById, getById,
+  updateById
 };
 

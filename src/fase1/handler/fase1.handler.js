@@ -75,7 +75,6 @@ export function registrarFase1Handlers(socket) {
 
       // busca o alvo atual
       const alvo = await buscarAlvoFase1Redis( socket.data.experimentoId, estado.alvoAtual,);
-      //TODO-ADICIONAR-VALIDADOR PARA O ALVO RECEBIDO
 
       const estaFocando =
         x >= alvo.x_min &&
