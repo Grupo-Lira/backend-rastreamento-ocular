@@ -32,7 +32,7 @@ async function connectWithRetry(connectFn, label) {
   throw lastError;
 }
 
-async function initialize() {
+export async function initialize() {
   try {
     await connectWithRetry(connectMongo, "MongoDB");
     await connectWithRetry(connectRedis, "Redis");
