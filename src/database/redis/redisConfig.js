@@ -30,6 +30,15 @@ export async function connectRedis() {
   return redis;
 }
 
+export async function disconnectRedis() {
+  if (!redis) {
+    return;
+  }
+
+  await redis.quit();
+  redis = undefined;
+}
+
 export function getRedis() {
   if (!redis) {
     throw new Error("Redis ainda não foi inicializado!");

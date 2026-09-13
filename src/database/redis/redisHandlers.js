@@ -131,10 +131,8 @@ export async function getAlvoFase1ByIndice(expId, indice) {
   const key = `exp:${expId}:alvos`;
 
   const data = await redis.get(key);
-  //TODO-VALIDAR DATA RECEBIDA
 
   const alvosList = JSON.parse(data);
-  //TODO-VALIDAR SE INDICIE É MAIOR QUE TAMANHO DO ARRAY DE ALVOS
 
   return alvosList[indice - 1] ?? null;
 }

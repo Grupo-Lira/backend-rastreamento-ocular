@@ -113,7 +113,7 @@ export function registrarFase2Handlers(socket) {
   });
 
   //INTERAÇÃO COM EVENTOS DO ARDUINO
-  const arduinoListener = (data) => {
+  const arduinoListener = async (data) => {
     if (data === "BUTTON_PRESSED") {
     } else {
       const planetaMatch = data.match(/PLANETA_(\d+)/);
