@@ -1,14 +1,21 @@
 {
   "name": "back-end-rastreamento-ocular",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend da plataforma FocusQuest",
+  "main": "app.js",
+  "private": true,
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "cross-env ENV=development node app.js",
     "start": "cross-env ENV=production node app.js",
-    "lint:check": "prettier --check .",
-    "lint:fix": "prettier --write .",
-    "test": "cross-env ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
+    "test": "cross-env ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:up": "docker compose --env-file .env.development up -d",
+    "infra:down": "docker compose --env-file .env.development down",
+    "infra:logs": "docker compose --env-file .env.development logs -f"
   },
   "keywords": [],
   "author": "",
