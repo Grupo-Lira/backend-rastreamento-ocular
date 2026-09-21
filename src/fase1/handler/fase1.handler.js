@@ -17,6 +17,45 @@ import {
   MOTIVO_TEMPO_ESGOTADO,
 } from "../../utils/constantes.js";
 
+const FASE1_FOCUS_STATUS_EVENT = "fase1_foco_status";
+
+const clampNormalized = (value) => Math.max(0, Math.min(1, value));
+
+const normalizarHitboxFase1 = (alvo) => {
+  if (!alvo || typeof alvo !== "object") return alvo;
+
+  const xMin = Number(alvo.x_min);
+  const xMax = Number(alvo.x_max);
+  const yMin = Number(alvo.y_min);
+  const yMax = Number(alvo.y_max);
+
+  if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) return alvo;
+
+  return {
+    ...alvo,
+    x_min: clampNormalized(xMin),
+    x_max: clampNormalized(xMax),
+    y_min: clampNormalized(yMin),
+    y_max: clampNormalized(yMax),
+  };
+};
+
+const emitirStatusFoco = (socket, alvo, estado, status, timestamp) => {
+  const inicioFocoTs = Number(estado?.inicioFocoTs) || 0;
+  const tempoFocoMs = inicioFocoTs > 0
+    ? Math.max(0, timestamp - inicioFocoTs)
+    : 0;
+
+  socket.emit(FASE1_FOCUS_STATUS_EVENT, {
+    fase: 1,
+    alvo: alvo?.id ?? estado?.alvoAtual,
+    status,
+    timestamp,
+    inicio_foco_ts: inicioFocoTs || null,
+    tempo_foco_ms: tempoFocoMs,
+  });
+};
+
 // chama todos os handlers criados em redisHandler e fase1Service
 export function registrarFase1Handlers(socket) {
   socket.on("iniciar_fase1", async (config) => {
@@ -26,13 +65,16 @@ export function registrarFase1Handlers(socket) {
     //TODO-VALIDAR-ALVOS-config.fase1
     //TODO-BUSCAR-AS-PROPERTIES-DO-BANCO-E-SALVAR-EM-CACHE(REDIS)
 
-    const totalAlvosFase1 = Array.isArray(config.fase1) ? config.fase1.length : 0;
+    const alvosComHitbox = Array.isArray(config.fase1)
+      ? config.fase1.map(normalizarHitboxFase1)
+      : [];
+    const totalAlvosFase1 = alvosComHitbox.length;
     const experimento = await salvarExperimentoFase1(
       config.usuarioId,
       totalAlvosFase1,
     ); // ao iniciar, vai criar no mongo com campos vazios
     await salvarExperimentoFase1Redis(experimento._id, 1); // faz o mesmo no redis
-    await salvarAlvosFase1Redis(experimento._id, config.fase1); // cria o alvo no redis
+    await salvarAlvosFase1Redis(experimento._id, alvosComHitbox); // cria o alvo no redis
 
     socket.data.experimentoId = experimento._id.toString(); // serve pra chamar o id do experimento e do usuario com o front
     socket.data.usuarioId = config.usuarioId;
@@ -84,68 +126,67 @@ export function registrarFase1Handlers(socket) {
 
 
       let tipoEvento = "INDETERMINADO";
+      let focoConsiderado = estaFocando;
+      let statusFoco = "DESFOCADO";
+
       if (estaFocando) {
-        if (estado.focoConsecutivo === 0) { // focoConsecutivo guarda qunatas vezes o usuario olhou pro alvo
-          console.debug(
-            `Cliente ${usuarioId} começou a focar no alvo ${estado.alvoAtual} pela primeira vez.`,
-          );
-          tipoEvento = "FOCANDO";
+        const focoAnteriorAtivo = Number(estado.inicioFocoTs) > 0;
 
+        if (!focoAnteriorAtivo) {
+          console.debug(
+            `Cliente ${usuarioId} iniciou foco no alvo ${estado.alvoAtual}.`,
+          );
           estado.inicioFocoTs = currDate;
-          estado.focoConsecutivo += 1; // acumula a cada olhada
-          estado.ultimoFocoTs = currDate;
-          estado.foraConsecutivo = 0;
+          estado.focoConsecutivo = 1;
+        } else {
+          estado.focoConsecutivo += 1;
+        }
 
-          console.debug(
-            `INICIANDO FOCO - Cliente ${usuarioId} - Fase 1 - FOCO INICIADO TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
-          );
-          // se a pessoa ficou 5s olhando pro alvo
-        } else if (
-          estado.ultimoFocoTs - estado.inicioFocoTs >=
-          DWELL_REQUIRED_MS
-        ) {
-          console.debug(
-            `FOCO COMPLETO - Cliente ${usuarioId} - Fase 1 - FOCO FINALIZADO TIMESTAMP: ${currDate - estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
-          );
+        tipoEvento = "FOCANDO";
+        statusFoco = "FOCANDO";
+        estado.ultimoFocoTs = currDate;
+        estado.foraConsecutivo = 0;
 
+        const tempoFocoMs = currDate - estado.inicioFocoTs;
+        if (tempoFocoMs >= DWELL_REQUIRED_MS) {
+          console.debug(
+            `FOCO COMPLETO - Cliente ${usuarioId} - Fase 1 - ${tempoFocoMs}ms`,
+          );
           tipoEvento = "FOCO_FINALIZADO";
-          estado.focoConsecutivo += 1;
-          estado.ultimoFocoTs = currDate;
-        } else {
-          console.debug(
-            `FOCANDO - Cliente ${usuarioId} - Fase 1 - FOCANDO  TIMESTAMP: ${estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
-          );
-
-          tipoEvento = "FOCANDO";
-          estado.focoConsecutivo += 1;
-          estado.ultimoFocoTs = currDate;
+          statusFoco = "CONCLUIDO";
         }
+      } else if (Number(estado.inicioFocoTs) > 0) {
+        // Não existe janela de tolerância: qualquer amostra fora da hitbox
+        // encerra imediatamente o bloco de foco atual.
+        focoConsiderado = false;
+        tipoEvento = "DESVIO_COMISSAO";
+        statusFoco = "DESFOCADO";
+        estado.inicioFocoTs = 0;
+        estado.ultimoFocoTs = 0;
+        estado.focoConsecutivo = 0;
+        estado.foraConsecutivo += 1;
+      } else if (estado.foraConsecutivo === 4) {
+        tipoEvento = "DESVIO_OMISSAO";
+        estado.foraConsecutivo += 1;
       } else {
-        console.debug(
-          `NÃO FOCOU - Cliente ${usuarioId} - Fase 1 - FOCO INICIADO TIMESTAMP: ${currDate - estado.inicioFocoTs}ms - Mínimo: ${DWELL_REQUIRED_MS}ms`,
-        );
-
-        if (estado.inicioFocoTs > 0) { // parou de olhar antes de 5s
-          tipoEvento = "DESVIO_COMISSAO";
-
-          estado.inicioFocoTs = 0;
-          estado.focoConsecutivo = 0;
-          estado.foraConsecutivo += 1; // acumula a cada olhada q for comissao
-        } else if (estado.foraConsecutivo === 4) { // nao viu o alvo
-          tipoEvento = "DESVIO_OMISSAO";
-          estado.foraConsecutivo += 1; // acumula a cada olhada de omissao
-        } else {
-          tipoEvento = "DESFOCANDO";
-          estado.foraConsecutivo += 1;
-        }
+        tipoEvento = "DESFOCANDO";
+        estado.foraConsecutivo += 1;
       }
+
+      emitirStatusFoco(
+        socket,
+        alvo,
+        estado,
+        statusFoco,
+        currDate,
+      );
 
       // quando acabar o alvo, salva o historico dele, pra quando acabar os alvos, salvar o historico deles no mongo
       await incluirDadoHistoricoFase1Redis(
         socket.data.experimentoId,
         alvo.id,
         currDate,
-        estaFocando,
+        focoConsiderado,
         { x, y },
         tipoEvento,
       );

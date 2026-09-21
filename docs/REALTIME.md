@@ -38,6 +38,7 @@ Não há namespace customizado nem acknowledgements padronizados. Erros são nor
 iniciar_fase1
   -> fase1_iniciada
   -> gaze_data_fase1 (repetido)
+  -> fase1_foco_status (a cada verificação do gaze)
   -> alvo_fase1_concluido
   -> brilhar_estrela (enquanto houver próximo alvo)
   -> fase_concluida
@@ -54,7 +55,10 @@ iniciar_fase1
 }
 ```
 
-Cria `experimentos_fase_1`, guarda alvos/estado no Redis e começa no índice 1. Não há validação completa do ID ou dos alvos.
+Cria `experimentos_fase_1`, guarda alvos/estado no Redis e começa no índice 1. O
+backend apenas normaliza os limites recebidos para `[0,1]`; não acrescenta margem de
+tolerância. A caixa devolvida nos eventos de alvo é a mesma caixa avaliada no gaze.
+Não há validação completa do ID ou dos alvos.
 
 ### Servidor → cliente: `fase1_iniciada`
 
@@ -71,7 +75,27 @@ Cria `experimentos_fase_1`, guarda alvos/estado no Redis e começa no índice 1.
 { "x": 0.21, "y": 0.34, "timestamp": 1710000000000 }
 ```
 
-`x` e `y` devem usar a escala dos limites enviados. O backend persiste seu próprio `Date.now()`; `timestamp` é usado apenas no log atual. O dwell é 5000 ms.
+`x` e `y` devem usar a escala dos limites enviados. O backend persiste seu próprio
+`Date.now()`; `timestamp` é usado apenas no log atual. O dwell é 5000 ms. Qualquer
+saída da caixa encerra o bloco de foco e é registrada como comissão.
+
+### Servidor → cliente: `fase1_foco_status`
+
+```json
+{
+  "fase": 1,
+  "alvo": 1,
+  "status": "FOCANDO",
+  "timestamp": 1710000000000,
+  "inicio_foco_ts": 1710000000000,
+  "tempo_foco_ms": 2300
+}
+```
+
+`status` pode ser `FOCANDO`, `DESFOCADO` ou `CONCLUIDO`. `DESFOCADO` é emitido na
+primeira amostra fora da caixa e zera o bloco atual. `tempo_foco_ms` é calculado pelo
+relógio do servidor. O evento é emitido junto de cada amostra processada, portanto
+não é um heartbeat quando o cliente não envia gaze.
 
 ### Servidor → cliente: `alvo_fase1_concluido`
 

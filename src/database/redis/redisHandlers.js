@@ -37,12 +37,12 @@ export async function getEstadoExperimentoFase1ByExpId(expId) {
   const estado = await redis.hgetall(stateKey);
 
   return {
-    alvoAtual: Number(estado.alvoAtual),
-    focoConsecutivo: Number(estado.focoConsecutivo),
-    foraConsecutivo: Number(estado.foraConsecutivo),
-    inicioFocoTs: Number(estado.inicioFocoTs),
-    ultimoFocoTs: Number(estado.ultimoFocoTs),
-    timestampInicio: Number(estado.timestampInicio),
+    alvoAtual: toNumber(estado.alvoAtual),
+    focoConsecutivo: toNumber(estado.focoConsecutivo),
+    foraConsecutivo: toNumber(estado.foraConsecutivo),
+    inicioFocoTs: toNumber(estado.inicioFocoTs),
+    ultimoFocoTs: toNumber(estado.ultimoFocoTs),
+    timestampInicio: toNumber(estado.timestampInicio),
   };
 }
 

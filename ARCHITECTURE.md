@@ -74,9 +74,12 @@ As chaves de experimento expiram após uma hora. Na conclusão ou desconexão, o
 
 1. O cliente envia o paciente e as caixas normalizadas dos alvos.
 2. O backend cria um experimento MongoDB e guarda estado/alvos no Redis.
-3. Coordenadas de gaze são classificadas como foco, desvio, comissão ou omissão.
+3. Coordenadas de gaze são classificadas como foco, desvio, comissão ou omissão; uma
+   amostra fora da hitbox encerra imediatamente o bloco de foco.
 4. O histórico permanece no Redis durante o alvo.
-5. Após dwell de 5 segundos, resultado e histórico são persistidos no MongoDB.
+5. Após dwell de 5 segundos, resultado e histórico são persistidos no MongoDB. O
+   handler emite `fase1_foco_status` para sincronizar o estado autoritativo com o
+   cliente.
 6. O servidor ativa o próximo alvo ou calcula `EstatisticasFase1` e conclui a fase.
 
 ### Fase 2 — atenção seletiva
