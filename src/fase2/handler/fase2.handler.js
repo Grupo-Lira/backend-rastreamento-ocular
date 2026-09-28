@@ -44,7 +44,6 @@ function registrarFase2ControleMouseHandlers(socket) {
 }
 
 export function registrarFase2Handlers(socket) {
-
   const garantirExperimentoFase2 = async (usuarioIdFallback) => {
     if (socket.data.experimentoId) {
       return socket.data.experimentoId;
@@ -71,7 +70,11 @@ export function registrarFase2Handlers(socket) {
     console.log(`Cliente iniciou fase 2 com config:`, config);
 
     const usuarioId = config?.usuarioId;
-    const experimento = await salvarExperimentoFase2(usuarioId, config?.controleJogo || CONTROLE_MOUSE);
+    const experimento = await salvarExperimentoFase2(
+      usuarioId,
+      config?.controleJogo || CONTROLE_MOUSE,
+      config?.modoTreinamento === true,
+    );
     socket.data.experimentoId = experimento._id.toString();
     socket.data.usuarioId = usuarioId;
     if (config?.controleJogo) {
@@ -86,11 +89,11 @@ export function registrarFase2Handlers(socket) {
           registrarFase2ControleMouseHandlers(socket);
           break;
         default:
-          console.error(`Modo de jogo inválido selecionado para socket ${socket.id}: ${config.controleJogo}. Controle default será ${CONTROLE_MOUSE}`,
+          console.error(
+            `Modo de jogo inválido selecionado para socket ${socket.id}: ${config.controleJogo}. Controle default será ${CONTROLE_MOUSE}`,
           );
           break;
       }
-
     }
   });
 
@@ -132,7 +135,11 @@ export function registrarFase2Handlers(socket) {
           return;
         }
 
-        await getPlanetaNumero(socket, planetaNumero, socket.data.experimentoId);
+        await getPlanetaNumero(
+          socket,
+          planetaNumero,
+          socket.data.experimentoId,
+        );
       }
     }
   };

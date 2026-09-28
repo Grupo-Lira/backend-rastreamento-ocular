@@ -42,9 +42,8 @@ const normalizarHitboxFase1 = (alvo) => {
 
 const emitirStatusFoco = (socket, alvo, estado, status, timestamp) => {
   const inicioFocoTs = Number(estado?.inicioFocoTs) || 0;
-  const tempoFocoMs = inicioFocoTs > 0
-    ? Math.max(0, timestamp - inicioFocoTs)
-    : 0;
+  const tempoFocoMs =
+    inicioFocoTs > 0 ? Math.max(0, timestamp - inicioFocoTs) : 0;
 
   socket.emit(FASE1_FOCUS_STATUS_EVENT, {
     fase: 1,
@@ -72,6 +71,7 @@ export function registrarFase1Handlers(socket) {
     const experimento = await salvarExperimentoFase1(
       config.usuarioId,
       totalAlvosFase1,
+      config?.modoTreinamento === true,
     ); // ao iniciar, vai criar no mongo com campos vazios
     await salvarExperimentoFase1Redis(experimento._id, 1); // faz o mesmo no redis
     await salvarAlvosFase1Redis(experimento._id, alvosComHitbox); // cria o alvo no redis
@@ -103,8 +103,9 @@ export function registrarFase1Handlers(socket) {
       const x = data?.x ?? 0;
       const y = data?.y ?? 0;
 
-
-      const estado = await buscarExperimentoFase1Redis(socket.data.experimentoId,); // ve como está o estado do experimento
+      const estado = await buscarExperimentoFase1Redis(
+        socket.data.experimentoId,
+      ); // ve como está o estado do experimento
 
       if (
         estado === null ||
@@ -116,14 +117,16 @@ export function registrarFase1Handlers(socket) {
       }
 
       // busca o alvo atual
-      const alvo = await buscarAlvoFase1Redis( socket.data.experimentoId, estado.alvoAtual,);
+      const alvo = await buscarAlvoFase1Redis(
+        socket.data.experimentoId,
+        estado.alvoAtual,
+      );
 
       const estaFocando =
         x >= alvo.x_min &&
         x <= alvo.x_max &&
         y >= alvo.y_min &&
         y <= alvo.y_max;
-
 
       let tipoEvento = "INDETERMINADO";
       let focoConsiderado = estaFocando;
@@ -173,13 +176,7 @@ export function registrarFase1Handlers(socket) {
         estado.foraConsecutivo += 1;
       }
 
-      emitirStatusFoco(
-        socket,
-        alvo,
-        estado,
-        statusFoco,
-        currDate,
-      );
+      emitirStatusFoco(socket, alvo, estado, statusFoco, currDate);
 
       // quando acabar o alvo, salva o historico dele, pra quando acabar os alvos, salvar o historico deles no mongo
       await incluirDadoHistoricoFase1Redis(

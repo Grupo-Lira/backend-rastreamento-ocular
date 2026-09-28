@@ -51,7 +51,8 @@ iniciar_fase1
 ```json
 {
   "usuarioId": "<id-do-paciente>",
-  "fase1": [{ "id": 1, "x_min": 0.1, "x_max": 0.3, "y_min": 0.2, "y_max": 0.4 }]
+  "fase1": [{ "id": 1, "x_min": 0.1, "x_max": 0.3, "y_min": 0.2, "y_max": 0.4 }],
+  "modoTreinamento": false
 }
 ```
 
@@ -161,7 +162,8 @@ No modo Arduino, `aguardando_iot` liga o LED e as seleções chegam internamente
 ```json
 {
   "usuarioId": "<id-do-paciente>",
-  "controleJogo": "CONTROLE_MOUSE"
+  "controleJogo": "CONTROLE_MOUSE",
+  "modoTreinamento": false
 }
 ```
 
@@ -208,7 +210,8 @@ O backend altera o status persistido para `RODADA2`.
   "mensagem": "Fase 2 (atenção seletiva) concluída.",
   "acertos": 0,
   "planetas_vistos": [],
-  "planetas_ignorados": []
+  "planetas_ignorados": [],
+  "experimento_id": "<id-do-experimento>"
 }
 ```
 
@@ -240,6 +243,7 @@ iniciar_fase3
 ```json
 {
   "usuarioId": "<id-do-paciente>",
+  "modoTreinamento": false,
   "alvoInicialNome": "ESTRELA",
   "fase3": [
     { "x_min": 0.1, "x_max": 0.3, "y_min": 0.2, "y_max": 0.4 },
@@ -302,6 +306,7 @@ Sem payload. Finaliza uma vez, calcula métricas, emite conclusão e desconecta.
   },
   "avaliacao_final": null,
   "avaliacao_score": null,
+  "experimento_id": "<id-do-experimento>",
   "acertos": 0,
   "erros_omissao": 0,
   "erros_comissao": 0

@@ -11,6 +11,7 @@ const rodadaSchema = new mongoose.Schema(
 const ExperimentosFase2Schema = new mongoose.Schema(
   {
     client_id: { type: String, required: true },
+    modo_treinamento: { type: Boolean, default: false },
     data_hora: { type: Date, default: Date.now },
     status: {
       type: String,
@@ -28,6 +29,8 @@ const ExperimentosFase2Schema = new mongoose.Schema(
       type: rodadaSchema,
       required: true,
     },
+    feedback_profissional: { type: String, default: "" },
+    nota_do_profissional: { type: Number, min: 0, max: 5, default: null },
     controle_jogo: {
       type: String,
       enum: ["CONTROLE_ARDUINO", "CONTROLE_MOUSE"],
