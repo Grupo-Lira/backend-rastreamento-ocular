@@ -21,7 +21,7 @@ import {
   EXPERIMENTO_STATUS_EM_EXECUCAO,
   LARGURA_TELA_PADRAO,
   MOTIVO_TEMPO_ESGOTADO,
-  MOTIVO_TROCA_ALVO
+  MOTIVO_TROCA_ALVO,
 } from "../../utils/constantes.js";
 
 const RESULTADO_ACERTO = "ACERTO";
@@ -67,6 +67,7 @@ const emitirConclusaoFase3 = async (expId, socket, estatisticas) => {
     metricas: estatisticas?.resumo_metricas ?? {},
     avaliacao_final: avaliacaoFinal?.avaliacao ?? null,
     avaliacao_score: avaliacaoFinal?.score ?? null,
+    experimento_id: expId,
     acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
     erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
     erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
@@ -89,7 +90,7 @@ const analisarAlvoFase3 = (resultado, historico) => {
       const ts = toTimestamp(evento?.timestamp);
       return (
         String(evento?.nome_alvo ?? "").toUpperCase() ===
-        String(resultado?.nome_alvo ?? "").toUpperCase() &&
+          String(resultado?.nome_alvo ?? "").toUpperCase() &&
         ts >= inicioMs &&
         ts <= fimMs
       );
@@ -148,7 +149,7 @@ const gerarEstatisticasFase3 = async (expId) => {
   if (!expId) return null;
 
   const experimento = await ExperimentosFase3.findById(expId).lean();
-  if (!experimento) return null
+  if (!experimento) return null;
   const resultadosAlvos = Array.isArray(experimento.resultados_alvos)
     ? experimento.resultados_alvos
     : [];
@@ -187,6 +188,7 @@ const gerarEstatisticasFase3 = async (expId) => {
   const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
 
   const estatisticasPayload = {
+    modo_treinamento: experimento.modo_treinamento === true,
     usuario_id: usuarioId,
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
@@ -270,7 +272,6 @@ const finalizarFocoAlvoFase3 = async (
 
     return emitirConclusaoFase3(expId, socket, estatisticas);
   }
-
 };
 
 // registra resultado do alvo (ex.: foco completo) mas NÃO altera o alvo atual (sem alternância)
@@ -333,10 +334,11 @@ const finalizarFase3 = async (expId) => {
   ]);
 };
 
-const salvarExperimentoFase3 = async (usuarioId) => {
+const salvarExperimentoFase3 = async (usuarioId, modoTreinamento = false) => {
   try {
     const experimentoFase3 = await ExperimentosFase3.create({
       client_id: usuarioId,
+      modo_treinamento: modoTreinamento === true,
       fase: 3,
       status: EXPERIMENTO_STATUS_EM_EXECUCAO,
       data_hora: new Date(),
@@ -420,9 +422,12 @@ export {
   finalizarFase3,
   finalizarFocoAlvoFase3,
   incluirDadoHistoricoFase3Redis,
-  iniciarDestaqueAlvo, pausarFase3Redis, registrarFinalizacaoAlvoSemAlternancia,
-  registrarTrocaAlvoFase3, retomarFase3Redis, salvarAlvosFase3Redis,
+  iniciarDestaqueAlvo,
+  pausarFase3Redis,
+  registrarFinalizacaoAlvoSemAlternancia,
+  registrarTrocaAlvoFase3,
+  retomarFase3Redis,
+  salvarAlvosFase3Redis,
   salvarExperimentoFase3,
-  salvarExperimentoFase3Redis
+  salvarExperimentoFase3Redis,
 };
-

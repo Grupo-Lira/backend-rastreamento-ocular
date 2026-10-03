@@ -1,114 +1,119 @@
-## FocusQuest Backend
+# FocusQuest Backend
 
-Servidor Node.js responsável por autenticação, gerenciamento de pacientes e usuários, comunicação em tempo real via Socket.IO, integração com MongoDB/Redis, geração de relatórios e processamento dos eventos de rastreamento ocular.
+Backend do FocusQuest responsável pela API REST, autenticação, pacientes, experimentos em tempo real das três fases, persistência de métricas, integração com Arduino e geração de relatórios PDF.
 
-## Visão Geral
+## Stack
 
-Este backend concentra a lógica de domínio do FocusQuest. Ele expõe a API HTTP, mantém os canais de WebSocket, persiste dados no MongoDB, usa Redis para estados temporários e integra a comunicação com Arduino e geração de PDF dos relatórios.
+- Node.js `>=20.19.0`, JavaScript ESM e Express 5
+- Socket.IO 4
+- MongoDB 7 com Mongoose 9
+- Redis 7 com ioredis
+- JWT e bcryptjs
+- Puppeteer para PDF
+- SerialPort para Arduino
+- Swagger/OpenAPI para a API REST
 
-## Tecnologias Utilizadas
+## Estrutura principal
 
-- Node.js
-- Express
-- Socket.IO
-- MongoDB com Mongoose
-- Redis com ioredis
-- SerialPort para integração com Arduino
-- Puppeteer para geração de PDF
-- Swagger para documentação da API
-
-## Estrutura do Projeto
-
-```
-backend/
-├── app.js
-├── compose.yml
-├── Dockerfile
-├── Dockerfile.local
-├── env.config.js
-├── package.json
+```text
+.
+├── app.js                  # bootstrap, conexões e listen
+├── env.config.js           # carrega .env.<ENV>
+├── compose.yml             # MongoDB e Redis locais
 ├── src/
-│   ├── arduino/
-│   ├── auth/
-│   ├── database/
-│   ├── docs/
-│   ├── fase1/
-│   ├── fase2/
-│   ├── fase3/
-│   ├── models/
-│   ├── pacientes/
-│   ├── relatorios/
-│   ├── server/
-│   ├── usuarios/
-│   └── utils/
-└── tests/
+│   ├── auth/               # login, cadastro, logout e JWT
+│   ├── database/           # MongoDB e Redis
+│   ├── docs/               # configuração Swagger
+│   ├── fase1/              # foco sustentado
+│   ├── fase2/              # atenção seletiva e Arduino
+│   ├── fase3/              # atenção alternada
+│   ├── models/             # schemas Mongoose
+│   ├── pacientes/          # CRUD de pacientes
+│   ├── relatorios/         # métricas e PDF
+│   ├── server/             # Express e Socket.IO
+│   └── usuarios/           # perfil do usuário
+└── tests/                  # Jest, Supertest e bancos efêmeros
 ```
 
-## Como Executar
+Consulte [ARCHITECTURE.md](ARCHITECTURE.md) para fluxos e responsabilidades e [docs/REALTIME.md](docs/REALTIME.md) para o contrato Socket.IO.
 
-### Modo rápido no monorepo
+## Desenvolvimento local
 
-Use este caminho quando quiser subir tudo em conjunto:
-<br>
-Basta acessar o repositório `focusquest-monorepo` e seguir os passos descritos no readme do projeto:
-<br>
-<b>Link:</b> https://github.com/Grupo-Lira/focusquest-monorepo.git
+Pré-requisitos: Node.js `>=20.19.0`, npm, MongoDB e Redis. Para variáveis e Docker, consulte [DEVELOPMENT.md](DEVELOPMENT.md).
 
-### Execução manual só do backend
-
-Use este caminho quando quiser rodar apenas o backend dentro deste submodule:
-
-1. Instale as dependências:
+Instale as dependências:
 
 ```bash
-npm install
+npm ci
 ```
 
-2. Ajuste as variáveis no arquivo `.env.development` conforme seu ambiente local.
+Inicie MongoDB e Redis locais com o mesmo `.env.development` usado pela aplicação:
 
-3. Garanta que MongoDB e Redis estejam disponíveis localmente.
-3.1 Pelo compose:
 ```bash
-docker-compose up
+npm run infra:up
 ```
 
-4. Inicie o servidor:
+O Compose deste repositório contém apenas esses dois serviços. Use `npm run infra:down` para encerrá-los e `npm run infra:logs` para acompanhar os logs.
 
-4.1 Manualmente:
+Inicie o backend:
+
 ```bash
 npm run dev
 ```
 
-O backend sobe em:
+Por padrão, o servidor fica em `http://localhost:4000`.
+
+## Comandos principais
 
 ```bash
-http://localhost:4000
+npm run dev                         # desenvolvimento, ENV=development
+npm start                           # produção, ENV=production
+npm test                            # suíte Jest completa
+npm test -- tests/app.test.js       # um arquivo de teste
+npm run format:check                # verifica Prettier
+npm run format                      # aplica Prettier
+npm run infra:up                    # inicia MongoDB e Redis em background
+npm run infra:down                  # encerra MongoDB e Redis
+npm run infra:logs                  # acompanha logs da infraestrutura
 ```
 
-### 3. Frontend separado
+Não existe etapa de build do JavaScript. A imagem de produção pode ser construída com `docker build .`.
 
-Se preferir testar sem o monorepo, clone o frontend em outro diretório e aponte a variável `NEXT_PUBLIC_API_URL` para o backend.
+## Configuração
 
-<b>Link do frontend:</b> https://github.com/Grupo-Lira/FocusQuest-web.git
+`env.config.js` carrega `.env.${ENV}` e usa `development` por padrão. Copie `.env.example` para `.env.development` e ajuste os valores locais. Principais variáveis:
 
-## Pré-requisitos
+- `SERVER_PORT`
+- `MONGO_URI`
+- `REDIS_HOSTNAME`, `REDIS_PORT`, `REDIS_PASSWORD`
+- `JWT_SECRET`, `JWT_EXPIRACAO`
+- `FRONTEND_ORIGINS`
+- `ARDUINO_ENABLED`
+- `ML_SERVICE_URL`, `ML_SERVICE_TIMEOUT_MS`
 
-- Node.js 18+
-- MongoDB
-- Redis
-- Arduino via USB, se for testar a integração física
+Não registre valores reais. A avaliação é tratada como serviço externo; seus detalhes internos não fazem parte deste guia.
 
-## Documentação da API
+## API e saúde
 
-- Swagger UI: http://localhost:4000/api/docs
-- Swagger JSON: http://localhost:4000/api/docs.json
+- Healthcheck: `GET /api/health`
+- Swagger UI: `http://localhost:4000/api/docs`
+- OpenAPI JSON: `http://localhost:4000/api/docs.json`
 
-## Observações
+Rotas REST principais:
 
-- A fase 2 depende da conexão com arduino para seleção dos planetas.
-- A porta serial pode precisar de ajuste em `src/arduino/config/serial.js`.
-- O URI do MongoDB é configurado por ambiente e pode ser alterado em `.env.development`.
-- Os eventos de Socket.IO e as métricas calculadas dependem do fluxo de uso do cliente frontend.
+- `/api/auth`
+- `/api/usuarios`
+- `/api/pacientes`
+- `/api/relatorios/pdf/:id`
 
+Usuários, pacientes, relatórios e logout usam Bearer JWT. Socket.IO ainda não aplica autenticação JWT; veja [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Testes e qualidade
 
+Os testes usam MongoDB em memória e Redis mockado; não devem acessar bancos de desenvolvimento ou produção. A cobertura atual inclui healthcheck e rotas de pacientes.
+
+O backend usa Prettier, mas não possui ESLint. Há violações de formatação preexistentes; evite reformatação ampla junto de mudanças funcionais.
+
+## Orientações para agentes
+
+Agentes de código devem ler [AGENTS.md](AGENTS.md) antes de modificar o repositório.
