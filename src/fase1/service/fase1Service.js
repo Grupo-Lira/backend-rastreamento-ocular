@@ -214,6 +214,7 @@ const gerarEstatisticasFase1 = async (expId) => {
   };
 
   const estatisticasPayload = {
+    modo_treinamento: experimento.modo_treinamento === true,
     usuario_id: new mongoose.Types.ObjectId(String(experimento.client_id)),
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
@@ -301,6 +302,7 @@ const finalizarFocoAlvo = async (
     const payloadFaseConcluida = {
       fase: 1,
       metricas: estatisticas?.resumo_metricas ?? {},
+      experimento_id: expId,
     };
 
     socket.emit("fase_concluida", payloadFaseConcluida);
@@ -334,7 +336,11 @@ const finalizarFase1 = async (expId) => {
 };
 
 //mongoDB
-const salvarExperimentoFase1 = async (usuarioId, totalAlvos = 0) => {
+const salvarExperimentoFase1 = async (
+  usuarioId,
+  totalAlvos = 0,
+  modoTreinamento = false,
+) => {
   try {
     const experimentoFase1 = await ExperimentosFase1.create({
       client_id: usuarioId,
@@ -342,6 +348,7 @@ const salvarExperimentoFase1 = async (usuarioId, totalAlvos = 0) => {
       status: EXPERIMENTO_STATUS_EM_EXECUCAO,
       data_hora: new Date(),
       total_alvos: Number(totalAlvos) || 0,
+      modo_treinamento: modoTreinamento === true,
       historico_olhar: [],
       resultados_alvos: [],
     });
@@ -406,5 +413,5 @@ export {
   iniciarDestaqueEstrela,
   salvarAlvosFase1Redis,
   salvarExperimentoFase1,
-  salvarExperimentoFase1Redis
+  salvarExperimentoFase1Redis,
 };

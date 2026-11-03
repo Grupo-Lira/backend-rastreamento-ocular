@@ -1,6 +1,11 @@
 import { initArduino, sendToArduino } from "../../arduino/config/serial.js";
 import DadosExperimentosFase2 from "../../models/ExperimentosFase2.js";
-import { CONTROLE_ARDUINO, CONTROLE_MOUSE, STATUS_RODADA1, STATUS_RODADA2 } from "../../utils/constantes.js";
+import {
+  CONTROLE_ARDUINO,
+  CONTROLE_MOUSE,
+  STATUS_RODADA1,
+  STATUS_RODADA2,
+} from "../../utils/constantes.js";
 
 const ALVOS_RODADA1 = [2, 5, 7];
 const ALVOS_RODADA2 = [1, 3, 6];
@@ -9,9 +14,14 @@ export const iniciar_conexao_arduino_fase2 = async (expId) => {
   initArduino();
 };
 
-export const salvarExperimentoFase2 = async (usuarioId, controleJogo = CONTROLE_MOUSE) => {
+export const salvarExperimentoFase2 = async (
+  usuarioId,
+  controleJogo = CONTROLE_MOUSE,
+  modoTreinamento = false,
+) => {
   const experiementoFase2 = await DadosExperimentosFase2.create({
     client_id: usuarioId,
+    modo_treinamento: modoTreinamento === true,
     status: STATUS_RODADA1,
     gabarito: {
       rodada1: ALVOS_RODADA1,
@@ -106,13 +116,17 @@ const finalizarRodadaFase2 = async (socket, experimento) => {
       status: STATUS_RODADA2,
     });
   } else {
-    const planetasVistosEIgnorados = getPlanetasVistosEIgnorados(experimento.gabarito, experimento.respostas);
+    const planetasVistosEIgnorados = getPlanetasVistosEIgnorados(
+      experimento.gabarito,
+      experimento.respostas,
+    );
     socket.emit("fase_atual_finalizada", {
       fase: 2,
       mensagem: "Fase 2 (atenção seletiva) concluída.",
       acertos: experimento.acertos,
       planetas_vistos: planetasVistosEIgnorados.planetasVistos,
       planetas_ignorados: planetasVistosEIgnorados.planetasIgnorados,
+      experimento_id: experimento._id.toString(),
     });
 
     socket.emit("experimento_concluido", {
@@ -122,21 +136,32 @@ const finalizarRodadaFase2 = async (socket, experimento) => {
 };
 const getPlanetasVistosEIgnorados = (gabarito, respostaUsuario) => {
   const planetasVistos = getPlanetasDoGabaritoVistos(gabarito, respostaUsuario);
-  const planetasIgnorados = getPlanetasDoGabaritoIgnorados(gabarito, respostaUsuario);
+  const planetasIgnorados = getPlanetasDoGabaritoIgnorados(
+    gabarito,
+    respostaUsuario,
+  );
   return { planetasVistos, planetasIgnorados };
-}
+};
 
 const getPlanetasDoGabaritoVistos = (gabarito, respostaUsuario) => {
-  const planetasVistosRodada1 = respostaUsuario.rodada1.filter((planetaId) => gabarito.rodada1.includes(planetaId));
-  const planetasVistosRodada2 = respostaUsuario.rodada2.filter((planetaId) => gabarito.rodada2.includes(planetaId));
+  const planetasVistosRodada1 = respostaUsuario.rodada1.filter((planetaId) =>
+    gabarito.rodada1.includes(planetaId),
+  );
+  const planetasVistosRodada2 = respostaUsuario.rodada2.filter((planetaId) =>
+    gabarito.rodada2.includes(planetaId),
+  );
   return [...planetasVistosRodada1, ...planetasVistosRodada2];
-}
+};
 
 const getPlanetasDoGabaritoIgnorados = (gabarito, respostaUsuario) => {
-  const planetasIgnoradosRodada1 = gabarito.rodada1.filter((planetaId) => !respostaUsuario.rodada1.includes(planetaId));
-  const planetasIgnoradosRodada2 = gabarito.rodada2.filter((planetaId) => !respostaUsuario.rodada2.includes(planetaId));
+  const planetasIgnoradosRodada1 = gabarito.rodada1.filter(
+    (planetaId) => !respostaUsuario.rodada1.includes(planetaId),
+  );
+  const planetasIgnoradosRodada2 = gabarito.rodada2.filter(
+    (planetaId) => !respostaUsuario.rodada2.includes(planetaId),
+  );
   return [...planetasIgnoradosRodada1, ...planetasIgnoradosRodada2];
-}
+};
 
 const getExperimentoFase2Mongo = async (expId) => {
   const experimento = await DadosExperimentosFase2.findById(expId);

@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-// schemas criados no mongo 
+// schemas criados no mongo
 const historicoOlharSchema = new mongoose.Schema(
   {
     is_focando: Boolean,
@@ -47,6 +47,7 @@ const ExperimentosFase1Schema = new mongoose.Schema(
     client_id: { type: String, required: true },
     data_hora: { type: Date, default: Date.now },
     total_alvos: { type: Number, default: 0 },
+    modo_treinamento: { type: Boolean, default: false },
     historico_olhar: [historicoOlharSchema],
     resultados_alvos: [resultadoAlvoSchema],
   },

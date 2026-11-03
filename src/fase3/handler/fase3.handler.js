@@ -75,7 +75,7 @@ export function registrarFase3Handlers(socket) {
     socket.data.fase3Pausada = true;
     socket.data.fase3TimerRestanteMs = timerRestanteMs;
     socket.data.fase3TimerDeadlineEm = null;
-    socket.data.fase3TimerDelayMs = null
+    socket.data.fase3TimerDelayMs = null;
 
     return { ...estado, pausado: 1, timerRestanteMs };
   };
@@ -92,7 +92,9 @@ export function registrarFase3Handlers(socket) {
     }
 
     const timerRestanteMs =
-      socket.data.fase3TimerRestanteMs ?? estado.timerRestanteMs ?? ALTERNANCIA_ALVO_MS;
+      socket.data.fase3TimerRestanteMs ??
+      estado.timerRestanteMs ??
+      ALTERNANCIA_ALVO_MS;
 
     await retomarFase3Redis(socket.data.experimentoId, {
       timerRestanteMs: 0,
@@ -108,13 +110,13 @@ export function registrarFase3Handlers(socket) {
       agendarProximaAlternancia();
     }
 
-
     return { ...estado, pausado: 0, timerRestanteMs: 0 };
   };
 
   // muda o alvo quando der o tempo, ou quando o cliente pedir, e registra a troca no histórico do experimento
   const alternarAlvoFase3 = async (motivo = "TIMER") => {
-    if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {      return false;
+    if (!socket.data.fase3Pronta || socket.data.fase3Encerrada) {
+      return false;
     }
 
     const expId = socket.data.experimentoId;
@@ -170,7 +172,10 @@ export function registrarFase3Handlers(socket) {
     socket.data.fase3Pausada = false;
     socket.data.fase3TimerRestanteMs = null;
 
-    const experimento = await salvarExperimentoFase3(config.usuarioId); // ao iniciar, vai criar no mongo com campos vazios
+    const experimento = await salvarExperimentoFase3(
+      config.usuarioId,
+      config?.modoTreinamento === true,
+    ); // ao iniciar, vai criar no mongo com campos vazios
     const expId = experimento._id.toString();
 
     const alvoInicial = String(config?.alvoInicialNome).toUpperCase();
@@ -378,9 +383,7 @@ export function registrarFase3Handlers(socket) {
 
   //Fase 3 só acaba por tempo "excedido", ou seja, o contador chegou ao fim (0).
   socket.on("fase_3_tempo_excedido", async () => {
-    if (
-      socket.data.fase3Encerrada ||
-      !socket.data.experimentoId) {
+    if (socket.data.fase3Encerrada || !socket.data.experimentoId) {
       return;
     }
 
