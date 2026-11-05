@@ -1,29 +1,15 @@
 import request from "supertest";
-import { createServer } from "http";
-import { Server } from "socket.io";
-import express from "express";
+import { app } from "../src/server/server.js";
 
-let app, server, io;
+test("Checa se o servidor está funcionando corretamente /api/health", async () => {
+  const response = await request(app)
+    .get("/api/health");
 
-beforeAll(() => {
-  app = express();
-  app.get("/ping", (req, res) => res.status(200).send("pong"));
+  expect(response.status).toBe(200);
 
-  server = createServer(app);
-  io = new Server(server);
+  expect(response.body).toEqual({
+    status: "ok"
+  });
+
 });
 
-afterAll(async () => {
-  await io.close();
-  await server.close();
-});
-
-test("GET /ping retorna 200 e 'pong'", async () => {
-  const res = await request(app).get("/ping");
-  expect(res.statusCode).toBe(200);
-  expect(res.text).toBe("pong");
-});
-
-test("Socket.io inicializa corretamente", () => {
-  expect(io).toBeDefined();
-});

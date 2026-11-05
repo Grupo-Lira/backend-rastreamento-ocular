@@ -88,7 +88,9 @@ const getPacientesResponseDto = async (pacientes = []) => {
       if (pacienteDto) {
         pacientesDto.push(pacienteDto);
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error("Erro ao processar paciente:", paciente, error);
+    }
   }
 
   return pacientesDto;

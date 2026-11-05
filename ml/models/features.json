@@ -1,0 +1,20 @@
+{
+  "features": [
+    "phase1_tempo_reacao_medio_ms",
+    "phase1_tempo_reacao_desvio_padrao_ms",
+    "phase1_total_acertos",
+    "phase1_total_comissao",
+    "phase1_total_omissao",
+    "phase1_taxa_acerto",
+    "phase2_acertos",
+    "phase2_planetas_vistos",
+    "phase2_planetas_ignorados",
+    "phase2_taxa_acerto",
+    "phase3_tempo_reacao_medio_ms",
+    "phase3_tempo_reacao_desvio_padrao_ms",
+    "phase3_total_acertos",
+    "phase3_total_comissao",
+    "phase3_total_omissao",
+    "phase3_taxa_acerto"
+  ]
+}

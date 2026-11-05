@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
+import { avaliarSessaoFinal } from "../../ai/avaliacaoFinalService.js";
 import {
-  DWELL_REQUIRED_MS,
   clearAlvosFase3,
   clearEstadoExperimentoFase3,
   clearEstadoExperimentoHistoricoFase3,
+  DWELL_REQUIRED_MS_FASE_3,
   getAlvoFase3ByNome,
   getEstadoExperimentoFase3ByExpId,
   getEstadoExperimentoHistoricoFase3,
@@ -19,7 +20,6 @@ import {
   ALVOS_FASE3,
   EXPERIMENTO_STATUS_EM_EXECUCAO,
   LARGURA_TELA_PADRAO,
-  MOTIVO_FOCO_COMPLETO,
   MOTIVO_TEMPO_ESGOTADO,
   MOTIVO_TROCA_ALVO,
 } from "../../utils/constantes.js";
@@ -47,6 +47,34 @@ const calcularMediaDesvio = (valores) => {
     media: Number(media.toFixed(2)),
     desvioPadrao: Number(Math.sqrt(variancia).toFixed(2)),
   };
+};
+
+const emitirConclusaoFase3 = async (expId, socket, estatisticas) => {
+  let avaliacaoFinal = null;
+
+  try {
+    avaliacaoFinal = await avaliarSessaoFinal({
+      usuarioId: estatisticas?.usuario_id,
+      experimentoFase3Id: expId,
+      estatisticasFase3: estatisticas,
+    });
+  } catch (err) {
+    console.error("Erro ao avaliar desempenho final:", err);
+  }
+
+  socket.emit("fase_concluida", {
+    fase: 3,
+    metricas: estatisticas?.resumo_metricas ?? {},
+    avaliacao_final: avaliacaoFinal?.avaliacao ?? null,
+    avaliacao_score: avaliacaoFinal?.score ?? null,
+    experimento_id: expId,
+    acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
+    erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
+    erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
+  });
+
+  await finalizarFase3(expId);
+  return { faseConcluida: true };
 };
 
 // resultado: objeto com informações do resultado do alvo (incluindo motivo de término e timestamps)
@@ -96,9 +124,13 @@ const analisarAlvoFase3 = (resultado, historico) => {
   const duracaoTotalAlvoMs = Math.max(0, fimMs - inicioMs);
 
   let resultadoFinal = RESULTADO_OMISSAO;
-  if (tempoTotalFocadoMs >= DWELL_REQUIRED_MS)
+  if (resultado?.motivo_termino === MOTIVO_TROCA_ALVO) {
+    resultadoFinal = RESULTADO_COMISSAO;
+  } else if (tempoTotalFocadoMs >= DWELL_REQUIRED_MS_FASE_3) {
     resultadoFinal = RESULTADO_ACERTO;
-  else if (tempoTotalFocadoMs > 0) resultadoFinal = RESULTADO_COMISSAO;
+  } else if (tempoTotalFocadoMs > 0 || tempoReacaoMs !== null) {
+    resultadoFinal = RESULTADO_COMISSAO;
+  }
 
   return {
     nome_alvo: resultado?.nome_alvo,
@@ -118,7 +150,6 @@ const gerarEstatisticasFase3 = async (expId) => {
 
   const experimento = await ExperimentosFase3.findById(expId).lean();
   if (!experimento) return null;
-
   const resultadosAlvos = Array.isArray(experimento.resultados_alvos)
     ? experimento.resultados_alvos
     : [];
@@ -136,7 +167,6 @@ const gerarEstatisticasFase3 = async (expId) => {
 
   const { media: trMedio, desvioPadrao: trDesvioPadrao } =
     calcularMediaDesvio(temposReacao);
-
   const resumoMetricas = {
     tempo_reacao_medio_ms: trMedio,
     tempo_reacao_desvio_padrao_ms: trDesvioPadrao,
@@ -158,6 +188,7 @@ const gerarEstatisticasFase3 = async (expId) => {
   const usuarioId = new mongoose.Types.ObjectId(String(experimento.client_id));
 
   const estatisticasPayload = {
+    modo_treinamento: experimento.modo_treinamento === true,
     usuario_id: usuarioId,
     experimento_id: experimento._id,
     analise_por_alvo: analisePorAlvo,
@@ -182,6 +213,26 @@ const iniciarDestaqueAlvo = async (expId) => {
   const alvoAtual = await buscarAlvoFase3Redis(expId, nomeAlvoAtual);
 
   return alvoAtual;
+};
+
+const pausarFase3Redis = async (expId, atualizacoes = {}) => {
+  const estadoAtual = await buscarExperimentoFase3Redis(expId);
+
+  await atualizarEstadoExperimentoFase3Redis(expId, {
+    ...estadoAtual,
+    pausado: 1,
+    ...atualizacoes,
+  });
+};
+
+const retomarFase3Redis = async (expId, atualizacoes = {}) => {
+  const estadoAtual = await buscarExperimentoFase3Redis(expId);
+
+  await atualizarEstadoExperimentoFase3Redis(expId, {
+    ...estadoAtual,
+    pausado: 0,
+    ...atualizacoes,
+  });
 };
 
 const finalizarFocoAlvoFase3 = async (
@@ -211,12 +262,6 @@ const finalizarFocoAlvoFase3 = async (
 
   await clearEstadoExperimentoHistoricoFase3(expId);
 
-  socket.emit("alvo_fase3_concluido", {
-    fase: 3,
-    alvo: estado.nomeAlvoAtual,
-    motivo_termino: motivoTermino,
-  });
-
   if (motivoTermino === MOTIVO_TEMPO_ESGOTADO) {
     let estatisticas = null;
     try {
@@ -225,62 +270,7 @@ const finalizarFocoAlvoFase3 = async (
       console.error("Erro ao gerar estatisticas da fase 3:", err);
     }
 
-    socket.emit("fase_concluida", {
-      fase: 3,
-      metricas: estatisticas?.resumo_metricas ?? {},
-      acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
-      erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
-      erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
-    });
-
-    await finalizarFase3(expId);
-    return { faseConcluida: true };
-  }
-
-  // verifica se tem mais alvos para brilhar
-  if (motivoTermino === MOTIVO_FOCO_COMPLETO) {
-    const indiceAtual = ALVOS_FASE3.indexOf(estado.nomeAlvoAtual);
-    const proximoNomeAlvo = ALVOS_FASE3[indiceAtual + 1];
-
-    if (!proximoNomeAlvo) {
-      let estatisticas = null;
-      try {
-        estatisticas = await gerarEstatisticasFase3(expId);
-      } catch (err) {
-        console.error("Erro ao gerar estatisticas da fase 3:", err);
-      }
-
-      socket.emit("fase_concluida", {
-        fase: 3,
-        metricas: estatisticas?.resumo_metricas ?? {},
-        acertos: estatisticas?.resumo_metricas?.total_acertos ?? 0,
-        erros_omissao: estatisticas?.resumo_metricas?.total_omissao ?? 0,
-        erros_comissao: estatisticas?.resumo_metricas?.total_comissao ?? 0,
-      });
-
-      await finalizarFase3(expId);
-      return { faseConcluida: true };
-    }
-
-    estado.nomeAlvoAtual = proximoNomeAlvo;
-    estado.focoConsecutivo = 0;
-    estado.foraConsecutivo = 0;
-    estado.inicioFocoTs = 0;
-    estado.ultimoFocoTs = 0;
-    estado.timestampInicio = currDate;
-
-    await atualizarEstadoExperimentoFase3Redis(expId, estado);
-
-    const proximoAlvo = await buscarAlvoFase3Redis(expId, proximoNomeAlvo);
-    socket.emit("brilhar_alvo_fase3", {
-      fase: 3,
-      alvo: proximoAlvo?.nome ?? proximoNomeAlvo,
-    });
-
-    return {
-      faseConcluida: false,
-      alvoAtual: proximoAlvo?.nome ?? proximoNomeAlvo,
-    };
+    return emitirConclusaoFase3(expId, socket, estatisticas);
   }
 };
 
@@ -344,10 +334,11 @@ const finalizarFase3 = async (expId) => {
   ]);
 };
 
-const salvarExperimentoFase3 = async (usuarioId) => {
+const salvarExperimentoFase3 = async (usuarioId, modoTreinamento = false) => {
   try {
     const experimentoFase3 = await ExperimentosFase3.create({
       client_id: usuarioId,
+      modo_treinamento: modoTreinamento === true,
       fase: 3,
       status: EXPERIMENTO_STATUS_EM_EXECUCAO,
       data_hora: new Date(),
@@ -431,8 +422,12 @@ export {
   finalizarFase3,
   finalizarFocoAlvoFase3,
   incluirDadoHistoricoFase3Redis,
-  iniciarDestaqueAlvo, registrarFinalizacaoAlvoSemAlternancia, registrarTrocaAlvoFase3, salvarAlvosFase3Redis,
+  iniciarDestaqueAlvo,
+  pausarFase3Redis,
+  registrarFinalizacaoAlvoSemAlternancia,
+  registrarTrocaAlvoFase3,
+  retomarFase3Redis,
+  salvarAlvosFase3Redis,
   salvarExperimentoFase3,
-  salvarExperimentoFase3Redis
+  salvarExperimentoFase3Redis,
 };
-

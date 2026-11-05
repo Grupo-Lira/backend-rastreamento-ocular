@@ -14,7 +14,6 @@ const authMiddleware = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, getJwtSecret());
-
     if (await tokenCancelado(token)) {
       return res.status(401).json({ error: "Token inválido ou expirado." });
     }

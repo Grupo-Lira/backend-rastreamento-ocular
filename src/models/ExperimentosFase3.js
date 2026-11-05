@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 
-// histórico de cada olhar 
+// histórico de cada olhar
 const historicoOlharSchema = new mongoose.Schema(
   {
     is_focando: Boolean,
     timestamp: { type: Date, default: Date.now },
     nome_alvo: {
-      type: String, 
+      type: String,
       enum: ["ESTRELA", "RADAR"],
       required: true,
     },
@@ -39,7 +39,7 @@ const historicoOlharSchema = new mongoose.Schema(
 const resultadoAlvoSchema = new mongoose.Schema(
   {
     nome_alvo: {
-      type: String, 
+      type: String,
       enum: ["ESTRELA", "RADAR"],
       required: true,
     },
@@ -58,6 +58,7 @@ const resultadoAlvoSchema = new mongoose.Schema(
 const ExperimentosFase3Schema = new mongoose.Schema(
   {
     client_id: { type: String, required: true },
+    modo_treinamento: { type: Boolean, default: false },
     data_hora: { type: Date, default: Date.now },
     historico_olhar: [historicoOlharSchema],
     resultados_alvos: [resultadoAlvoSchema],

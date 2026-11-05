@@ -8,6 +8,7 @@ function toNumber(value, defaultValue = 0) {
 
 export const EXP_TTL = 60 * 60; //1HORA
 export const DWELL_REQUIRED_MS = 5000; // 5 SEGUNDOS DE DWELL PARA CONSIDERAR FOCO COMPLETO
+export const DWELL_REQUIRED_MS_FASE_3 = 3000; // 3 SEGUNDOS DE DWELL PARA CONSIDERAR FOCO COMPLETO EM FASE 3
 
 //FASE 1
 //ESTADO ---
@@ -36,12 +37,12 @@ export async function getEstadoExperimentoFase1ByExpId(expId) {
   const estado = await redis.hgetall(stateKey);
 
   return {
-    alvoAtual: Number(estado.alvoAtual),
-    focoConsecutivo: Number(estado.focoConsecutivo),
-    foraConsecutivo: Number(estado.foraConsecutivo),
-    inicioFocoTs: Number(estado.inicioFocoTs),
-    ultimoFocoTs: Number(estado.ultimoFocoTs),
-    timestampInicio: Number(estado.timestampInicio),
+    alvoAtual: toNumber(estado.alvoAtual),
+    focoConsecutivo: toNumber(estado.focoConsecutivo),
+    foraConsecutivo: toNumber(estado.foraConsecutivo),
+    inicioFocoTs: toNumber(estado.inicioFocoTs),
+    ultimoFocoTs: toNumber(estado.ultimoFocoTs),
+    timestampInicio: toNumber(estado.timestampInicio),
   };
 }
 
@@ -130,10 +131,8 @@ export async function getAlvoFase1ByIndice(expId, indice) {
   const key = `exp:${expId}:alvos`;
 
   const data = await redis.get(key);
-  //TODO-VALIDAR DATA RECEBIDA
 
   const alvosList = JSON.parse(data);
-  //TODO-VALIDAR SE INDICIE É MAIOR QUE TAMANHO DO ARRAY DE ALVOS
 
   return alvosList[indice - 1] ?? null;
 }
@@ -161,6 +160,9 @@ export async function salvarEstadoExperimentoFase3(expId, nomeAlvoAtual) {
     ultimoFocoTs: 0,
     timestampInicio: currentDate,
     finalizado: 0,
+    pausado: 0,
+    timerRestanteMs: 0,
+    pausaIniciadaEm: 0,
   });
 
   await redis.expire(stateKey, EXP_TTL);
@@ -180,6 +182,9 @@ export async function getEstadoExperimentoFase3ByExpId(expId) {
     ultimoFocoTs: toNumber(estado.ultimoFocoTs),
     timestampInicio: toNumber(estado.timestampInicio),
     finalizado: toNumber(estado.finalizado),
+    pausado: toNumber(estado.pausado),
+    timerRestanteMs: toNumber(estado.timerRestanteMs),
+    pausaIniciadaEm: toNumber(estado.pausaIniciadaEm),
   };
 }
 

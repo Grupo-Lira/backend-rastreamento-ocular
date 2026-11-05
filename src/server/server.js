@@ -6,6 +6,7 @@ import authRoutes from "../auth/routes/auth.routes.js";
 import { setupSwagger } from "../docs/swagger.js";
 import pacientesRoutes from "../pacientes/routes/pacientes.routes.js";
 import relatorioPdfRoutes from "../relatorios/routes/relatorioPdf.routes.js";
+import estatisticasRoutes from "../estatisticas/routes/estatisticas.routes.js";
 import usuariosRoutes from "../usuarios/routes/usuarios.routes.js";
 
 const FRONTEND_ORIGINS = (
@@ -31,6 +32,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/pacientes", pacientesRoutes);
 app.use("/api/relatorios", relatorioPdfRoutes);
+app.use("/api/estatisticas", estatisticasRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
