@@ -1,7 +1,7 @@
 import EventEmitter from "events";
 import { ReadlineParser, SerialPort } from "serialport";
 
-const SERIAL_PORT = "COM13"; // ajuste conforme necessário
+const SERIAL_PORT = "COM4"; // ajuste conforme necessário
 const SERIAL_BAUD_RATE = 9600;
 const ARDUINO_ENABLED = String(process.env.ARDUINO_ENABLED ?? "true").toLowerCase() === "true";
 
@@ -58,17 +58,30 @@ function sendToArduino(message) {
   }
 
   if (!serialPort) {
+    initArduino();
+  }
+
+  if (!serialPort || typeof serialPort.write !== "function") {
     console.error("Serial não inicializada.");
     return;
   }
 
-  serialPort.write(message + "\n", (err) => {
-    if (err) {
-      console.error("Erro ao escrever na serial:", err.message);
-    } else {
-      console.debug(`IoT <- ${message}`);
-    }
-  });
+  const writeMessage = () =>
+    serialPort.write(message + "\n", (err) => {
+      if (err) {
+        console.error("Erro ao escrever na serial:", err.message);
+      } else {
+        console.debug(`IoT <- ${message}`);
+      }
+    });
+
+  if (!serialPort.isOpen) {
+    console.debug("Serial ainda abrindo. Mensagem será enviada ao abrir a porta.");
+    serialPort.once("open", writeMessage);
+    return;
+  }
+
+  writeMessage();
 }
 
 function closeArduino() {
@@ -81,3 +94,4 @@ function closeArduino() {
 }
 
 export { arduinoEmitter, closeArduino, initArduino, sendToArduino };
+

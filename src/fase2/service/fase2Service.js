@@ -41,6 +41,11 @@ export const salvarExperimentoFase2 = async (
 };
 
 export const getPlanetaNumero = (socket, planetaNumero, expId) => {
+  if (!expId) {
+    console.error("Experimento da fase 2 não iniciado para este socket.");
+    return;
+  }
+
   console.debug(
     `Recebido planeta selecionado: ${planetaNumero} do cliente ${socket.id}`,
   );
@@ -92,6 +97,13 @@ const processarSelecaoPlaneta = async (socket, planeta, expId) => {
   socket.emit("resposta_planeta", {
     planeta,
     correto,
+  });
+
+  // compatibilidade com front-ends que escutam o evento antigo
+  socket.emit("planeta_recebido", {
+    numero: planeta,
+    correto,
+    rodada: rodadaKey,
   });
 
   const respostasRodadaAtualizada = atualizado.respostas?.[rodadaKey] || [];
